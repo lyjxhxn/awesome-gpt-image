@@ -32,7 +32,8 @@ a {
 }
 
 button,
-input {
+input,
+select {
   font: inherit;
 }
 
@@ -70,9 +71,10 @@ button {
 .topbar nav,
 .languageSwitch,
 .accountButton,
-.userMenu,
-.eyebrow,
-.heroActions a,
+  .userMenu,
+  .eyebrow,
+  .heroActions a,
+  .heroActions button,
 .metrics span,
 .skillSection,
 .skillCommand,
@@ -116,6 +118,7 @@ button {
 }
 
 .topbar nav a,
+.topbar nav > button,
 .communityNavItem > button {
   display: inline-flex;
   align-items: center;
@@ -132,21 +135,22 @@ button {
 }
 
 .topbar nav a:hover,
+.topbar nav > button:hover,
 .communityNavItem > button:hover,
 .communityNavItem:focus-within > button {
   background: rgba(255, 255, 255, 0.08);
   color: #ffffff;
 }
 
-.topbar nav a.sponsorNavLink {
+.topbar nav .sponsorNavLink {
   color: #ffd7e8;
 }
 
-.topbar nav a.sponsorNavLink svg {
+.topbar nav .sponsorNavLink svg {
   color: #ff78ad;
 }
 
-.topbar nav a.sponsorNavLink:hover {
+.topbar nav .sponsorNavLink:hover {
   background: rgba(255, 120, 173, 0.13);
   color: #ffffff;
 }
@@ -600,7 +604,8 @@ button {
   margin-top: 34px;
 }
 
-.heroActions a {
+.heroActions a,
+.heroActions button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -609,6 +614,10 @@ button {
   padding: 0 18px;
   border-radius: 8px;
   font-weight: 800;
+}
+
+.heroActions button {
+  cursor: pointer;
 }
 
 .heroActions .primaryAction {
@@ -2029,8 +2038,6 @@ button {
   line-height: 1.68;
 }
 
-.googleButton,
-.watchaButton,
 .adminHeader button {
   display: inline-flex;
   align-items: center;
@@ -2045,63 +2052,104 @@ button {
   font-weight: 900;
 }
 
-.authProviders {
+.authForm {
   display: grid;
   gap: 12px;
   margin-top: 24px;
 }
 
-.googleButton {
-  width: 100%;
-  min-height: 44px;
-  border-color: #dadce0;
-  background: #ffffff;
-  color: #1f1f1f;
-  font-family: Arial, Helvetica, sans-serif;
-  font-size: 14px;
-  font-weight: 700;
-  letter-spacing: 0;
-  box-shadow: 0 1px 2px rgba(3, 7, 15, 0.16);
+.authField {
+  display: grid;
+  gap: 7px;
 }
 
-.googleButton:hover {
-  background: #f8fafd;
-  border-color: #d2e3fc;
-  box-shadow: 0 2px 6px rgba(26, 115, 232, 0.18);
+.authField > span {
+  color: #8eeeff;
+  font-size: 12px;
+  font-weight: 900;
+  text-transform: uppercase;
 }
 
-.watchaButton {
+.authField input {
   width: 100%;
-  min-height: 44px;
-  border-color: rgba(64, 213, 117, 0.48);
-  background: linear-gradient(135deg, rgba(15, 185, 93, 0.92), rgba(5, 137, 75, 0.9));
+  min-height: 46px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 8px;
+  outline: 0;
+  padding: 0 12px;
+  background: rgba(3, 7, 15, 0.72);
   color: #ffffff;
+  font-weight: 750;
+}
+
+.authField input:focus {
+  border-color: rgba(103, 232, 249, 0.72);
+  box-shadow: 0 0 0 3px rgba(103, 232, 249, 0.1);
+}
+
+.authField small {
+  color: #8392a9;
+  font-size: 12px;
+}
+
+.authOtpField input {
+  font-size: 22px;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.3em;
+  text-align: center;
+}
+
+.authPrimaryButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 46px;
+  border: 1px solid rgba(120, 255, 185, 0.42);
+  border-radius: 8px;
+  margin-top: 3px;
+  padding: 0 14px;
+  background: linear-gradient(135deg, rgba(66, 230, 255, 0.9), rgba(160, 255, 99, 0.94));
+  color: #07101c;
   font-size: 14px;
-  letter-spacing: 0;
-  box-shadow: 0 10px 28px rgba(5, 137, 75, 0.22);
+  font-weight: 950;
 }
 
-.watchaButton:hover {
-  border-color: rgba(135, 255, 183, 0.72);
-  background: linear-gradient(135deg, rgba(30, 205, 112, 0.96), rgba(7, 154, 84, 0.94));
+.authPrimaryButton:hover {
+  filter: brightness(1.06);
 }
 
-.googleIcon {
-  width: 18px;
-  height: 18px;
-  flex: 0 0 auto;
+.authTextButton {
+  border: 0;
+  padding: 3px 0;
+  background: transparent;
+  color: #9eeeff;
+  font-size: 13px;
+  font-weight: 850;
 }
 
-.watchaIcon {
-  width: 22px;
-  height: 22px;
-  flex: 0 0 auto;
-  border-radius: 6px;
-  object-fit: cover;
+.authForgotButton {
+  justify-self: end;
+  margin-top: -5px;
 }
 
-.googleButton:disabled,
-.watchaButton:disabled,
+.authOtpActions,
+.authSwitchRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  margin-top: 14px;
+  color: #8998ad;
+  font-size: 13px;
+}
+
+.authSwitchRow {
+  justify-content: center;
+}
+
+.authPrimaryButton:disabled,
+.authTextButton:disabled,
 .adminHeader button:disabled {
   cursor: not-allowed;
   opacity: 0.6;
@@ -2148,6 +2196,41 @@ button {
 }
 
 .apiKeyForm > label {
+  color: #8eeeff;
+  font-size: 12px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.apiKeyForm > select,
+.apiProviderGrid input {
+  width: 100%;
+  min-height: 46px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 8px;
+  outline: 0;
+  padding: 0 12px;
+  background: rgba(3, 7, 15, 0.72);
+  color: #ffffff;
+}
+
+.apiKeyForm > select:focus,
+.apiProviderGrid input:focus {
+  border-color: rgba(103, 232, 249, 0.72);
+  box-shadow: 0 0 0 3px rgba(103, 232, 249, 0.1);
+}
+
+.apiProviderGrid {
+  display: grid;
+  gap: 11px;
+}
+
+.apiProviderGrid label {
+  display: grid;
+  gap: 7px;
+}
+
+.apiProviderGrid label > span {
   color: #8eeeff;
   font-size: 12px;
   font-weight: 900;
@@ -3559,7 +3642,8 @@ button {
     font-size: 16px;
   }
 
-  .heroActions a {
+  .heroActions a,
+  .heroActions button {
     width: 100%;
   }
 

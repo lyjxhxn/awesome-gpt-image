@@ -38,7 +38,7 @@ The spotlight runs independently. Existing GPT-Image2 cases, templates, Skill, a
 
 ## 🌐 Visual Website
 
-Use the live site at [gpt-image2.canghe.ai](https://gpt-image2.canghe.ai/) to browse the gallery as a product experience: open large previews, copy full prompts, filter by style or scenario, test generation after Google sign-in, and jump back to the source case on GitHub.
+Use the live site at [gpt-image2.canghe.ai](https://gpt-image2.canghe.ai/) to browse the gallery as a product experience: open large previews, copy full prompts, filter by style or scenario, configure a personal OpenAI-compatible image API, and jump back to the source case on GitHub.
 
 <p align="center">
   <a href="https://gpt-image2.canghe.ai/">
@@ -325,7 +325,9 @@ The skill source lives at [`agents/skills/gpt-image-2-style-library`](agents/ski
 
 ## 🔐 Website Auth & Generation
 
-The visual site supports direct APIMart generation with a personal browser-only API key. Without a personal key, signed-in users continue through Supabase Auth, platform credits, and the server-side APIMart key.
+The site uses Supabase email/password authentication with six-digit codes for signup confirmation and password recovery. Accounts, favorites, memberships, and credits remain associated with the same Supabase user ID. See [Email authentication and Resend setup](docs/email-auth-setup.md) for the full setup and email templates.
+
+The visual site generates directly through an OpenAI-compatible API configuration stored only in the current browser. Provide a provider name, Base URL, image model, and API key. Compatible endpoints must expose `GET /models` and `POST /images/generations`, allow browser CORS, and return either an image URL or `b64_json`. Without a configured API, the generation button opens the API settings dialog.
 
 Required Vercel environment variables:
 
@@ -355,9 +357,9 @@ Setup checklist:
 - Apply [`supabase/migrations/20260512143000_pricing_admin_metrics.sql`](supabase/migrations/20260512143000_pricing_admin_metrics.sql) to update the `$5 / 300 credits` catalog and add admin dashboard metrics.
 - Apply [`supabase/migrations/20260515090000_case_favorites.sql`](supabase/migrations/20260515090000_case_favorites.sql) to add per-user case favorites.
 - Apply [`supabase/migrations/20260828090000_apimart_generation_tasks.sql`](supabase/migrations/20260828090000_apimart_generation_tasks.sql) to add APIMart task IDs, actual USD costs, expiring result URLs, and provider indexes.
-- Add `https://gpt-image2.canghe.ai` and local dev URLs such as `http://127.0.0.1:5173` to Supabase Auth redirect URLs.
-- Enable the Google Provider after adding Google OAuth credentials in the Supabase Dashboard.
-- To force Google-only sign-in, disable the Email Provider in Supabase Auth settings.
+- Enable Email + Password and email confirmation in Supabase, then disable unused social providers such as Google.
+- Set the production URL as the Supabase Site URL and add production plus local URLs such as `http://127.0.0.1:5173/**` to Redirect URLs.
+- Use `{{ .Token }}` in both signup-confirmation and password-recovery templates, and configure Resend Custom SMTP with a verified production domain.
 - Keep `SUPABASE_SERVICE_ROLE_KEY` only in server-side environments such as Vercel Environment Variables.
 - Configure Stripe Checkout with the webhook URL `https://gpt-image2.canghe.ai/api/billing/webhook`.
 - Subscribe the Stripe webhook to `checkout.session.completed`, `invoice.payment_succeeded`, `customer.subscription.updated`, and `customer.subscription.deleted`.

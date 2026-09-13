@@ -79,14 +79,14 @@ function profilePayloadFromUser(user, existingProfile) {
   const metadata = user.user_metadata || {};
   const email = String(user.email || existingProfile?.email || '').trim().toLowerCase();
   const desiredRole = isSuperAdminEmail(email) ? 'super_admin' : existingProfile?.role || 'user';
-  const googleName = metadata.full_name || metadata.name || null;
-  const googleAvatar = metadata.avatar_url || metadata.picture || null;
+  const metadataName = metadata.full_name || metadata.name || null;
+  const metadataAvatar = metadata.avatar_url || metadata.picture || null;
 
   return {
     id: user.id,
     email,
-    full_name: existingProfile?.full_name || googleName,
-    avatar_url: googleAvatar || existingProfile?.avatar_url || null,
+    full_name: existingProfile?.full_name || metadataName,
+    avatar_url: metadataAvatar || existingProfile?.avatar_url || null,
     stripe_customer_id: existingProfile?.stripe_customer_id || null,
     role: existingProfile?.role === 'super_admin' || desiredRole === 'super_admin' ? 'super_admin' : 'user'
   };

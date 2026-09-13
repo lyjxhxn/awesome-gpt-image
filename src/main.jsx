@@ -37,38 +37,47 @@ import {
 import './styles.css';
 import { isSupabaseConfigured, supabase } from './supabaseClient';
 import {
+  AUTH_ERROR_CODES,
+  AUTH_RESEND_COOLDOWN_SECONDS,
+  isValidEmail,
+  isValidOtp,
+  mapAuthError,
+  normalizeEmail,
+  normalizeOtp,
+  passwordValidationCode,
+  requestPasswordRecovery,
+  resendSignupCode,
+  signInWithEmail,
+  signUpWithEmail,
+  updateRecoveredPassword,
+  verifyRecoveryCode,
+  verifySignupCode
+} from './emailAuthClient';
+import {
   clearPendingGeneration,
-  clearStoredApimartKey,
   cleanupExpiredGeneratedTests,
-  fetchPersonalTask,
-  fetchPlatformTask,
   getPendingGeneration,
   getSavedGeneration,
-  getStoredApimartKey,
-  maskApimartKey,
-  pollApimartTask,
-  saveGeneratedTest,
-  savePendingGeneration,
-  saveStoredApimartKey,
-  submitPersonalGeneration,
-  submitPlatformGeneration,
-  verifyPersonalApimartKey
+  saveGeneratedTest
 } from './apimartClient';
 import {
-  APIMART_DEFAULT_PRICE_USD,
-  APIMART_MAX_PROMPT_LENGTH,
-  APIMART_PRICE_SNAPSHOT_DATE,
-  apimartTaskErrorCode
+  DEFAULT_PERSONAL_PROVIDER,
+  clearStoredPersonalProvider,
+  getStoredPersonalProvider,
+  maskProviderKey,
+  normalizePersonalProvider,
+  saveStoredPersonalProvider,
+  submitPersonalProviderGeneration,
+  verifyPersonalProvider
+} from './personalProviderClient';
+import {
+  APIMART_MAX_PROMPT_LENGTH
 } from '../shared/apimart';
 import { CommunityAdminSection, CommunityPage } from './community';
 import skillExampleImage from '../agents/skills/gpt-image-2-style-library/assets/city-life-system-map.png';
 
 const fallbackRepoUrl = 'https://github.com/freestylefly/awesome-gpt-image-2';
-const sponsorUrl = 'https://apimart.ai/register?aff=oQgzUQ';
-const apimartKeysUrl = 'https://apimart.ai/keys';
 const gaMeasurementId = import.meta.env.VITE_GA_MEASUREMENT_ID;
-const watchaLogoUrl =
-  'https://watcha.tos-cn-beijing.volces.com/products/logo/1752064513_guan-cha-insights.png?x-tos-process=image/resize,w_720/format,webp';
 
 const copy = {
   en: {
@@ -88,7 +97,7 @@ const copy = {
     explore: 'Explore cases',
     githubProject: 'GitHub project',
     sponsorProject: 'API',
-    sponsorProjectLabel: 'Open APIMart API',
+    sponsorProjectLabel: 'Configure OpenAI-compatible API',
     cases: 'cases',
     categories: 'categories',
     templates: 'templates',
@@ -187,6 +196,32 @@ const copy = {
     apimartActualCost: (cost) => `Actual APIMart cost: $${cost}`,
     apimartShowKey: 'Show API key',
     apimartHideKey: 'Hide API key',
+    providerSettings: 'OpenAI-compatible API settings',
+    providerTitle: 'Configure an OpenAI-compatible image API',
+    providerSubtitle: 'Set the provider name, Base URL, image model, and API key. Settings stay only in this browser.',
+    providerType: 'API provider',
+    providerApimart: 'APIMart',
+    providerCompatible: 'OpenAI compatible / custom',
+    providerName: 'Provider name',
+    providerNamePlaceholder: 'For example: OpenAI, SiliconFlow, custom gateway',
+    providerBaseUrl: 'Base URL',
+    providerBaseUrlPlaceholder: 'https://api.openai.com/v1',
+    providerModel: 'Image model',
+    providerModelPlaceholder: 'gpt-image-2',
+    providerApiKey: 'API key',
+    providerApiKeyPlaceholder: 'Paste your API key',
+    providerSaved: 'API configuration verified and saved in this browser.',
+    providerCleared: 'The saved API configuration has been removed.',
+    providerConfigInvalid: 'Check the Base URL, model, and API key.',
+    providerKeyInvalid: 'The API key was rejected by the provider.',
+    providerConnectionFailed: 'Could not reach this API from the browser. Check the URL and CORS settings.',
+    providerRequestFailed: 'The provider rejected the request. Check whether its image API is OpenAI compatible.',
+    providerUnavailable: 'The provider is temporarily unavailable.',
+    providerRateLimited: 'The provider is rate limiting requests. Try again later.',
+    providerInvalidResponse: 'The provider returned no usable image URL or Base64 image.',
+    providerLocalOnly: (name) => `The full key stays in this browser and is sent only to ${name}.`,
+    providerPersonalMode: (name, masked, model) => `${name} · ${model} · ${masked}`,
+    providerVerifyHint: 'Verification calls GET /models; generation calls POST /images/generations.',
     usePlatformCredits: 'Sign in to use platform credits',
     promptRequired: 'Prompt is required and must stay under 10,000 characters.',
     serverUnavailable: 'Generation service is not configured yet.',
@@ -200,17 +235,53 @@ const copy = {
     alipayQueryFailed: 'The Alipay result could not be confirmed. Do not pay again; refresh this return page or contact support.',
     authRequired: 'Sign in to generate a test image.',
     signIn: 'Sign in',
-    signInTitle: 'Sign in to generate test images',
-    signInSubtitle: 'Use Google or Watcha to unlock image generation, credits, and membership features.',
+    signInTitle: 'Sign in to your account',
+    signInSubtitle: 'Access your favorites, membership, credits, and image generation history.',
+    registerTitle: 'Create an account',
+    registerSubtitle: 'Register with your email address. We will send you a six-digit verification code.',
+    signupOtpTitle: 'Verify your email',
+    signupOtpSubtitle: (email) => `Enter the six-digit code sent to ${email}.`,
+    forgotTitle: 'Recover your account',
+    forgotSubtitle: 'Enter your email address to receive a six-digit recovery code.',
+    recoveryOtpTitle: 'Enter recovery code',
+    recoveryOtpSubtitle: (email) => `If an account exists for ${email}, a six-digit code has been sent.`,
+    resetPasswordTitle: 'Set a new password',
+    resetPasswordSubtitle: 'Choose a new password for your account.',
+    emailLabel: 'Email address',
+    emailPlaceholder: 'you@example.com',
+    passwordLabel: 'Password',
+    passwordPlaceholder: 'Enter your password',
+    confirmPasswordLabel: 'Confirm password',
+    confirmPasswordPlaceholder: 'Enter the password again',
+    newPasswordLabel: 'New password',
+    newPasswordPlaceholder: 'Enter a new password',
+    verificationCodeLabel: 'Verification code',
+    verificationCodePlaceholder: '6-digit code',
+    passwordRule: 'Use at least 8 characters.',
+    createAccount: 'Create account',
+    verifyEmail: 'Verify and continue',
+    forgotPassword: 'Forgot password?',
+    recoverAccount: 'Send recovery code',
+    verifyRecovery: 'Verify code',
+    updatePassword: 'Set new password',
+    noAccount: 'New here?',
+    haveAccount: 'Already have an account?',
+    backToSignIn: 'Back to sign in',
+    changeEmail: 'Use a different email',
+    resendCode: 'Resend code',
+    resendCountdown: (seconds) => `Resend in ${seconds}s`,
+    signupCodeSent: 'Verification code sent. Check your inbox and spam folder.',
+    recoveryCodeSent: 'If this email is registered, a recovery code has been sent. Check your inbox and spam folder.',
+    passwordUpdated: 'Password updated successfully.',
     authRateLimited: 'Too many login attempts. Please wait a bit, then try again.',
-    googleNotConfigured: 'Google sign-in is not enabled yet.',
-    continueWithGoogle: 'Continue with Google',
-    continueWithWatcha: 'Continue with Watcha',
     authNotConfigured: 'Login is not configured yet.',
-    watchaNotConfigured: 'Watcha sign-in is not configured yet.',
-    watchaSessionExpired: 'Watcha sign-in expired. Please try again.',
-    watchaDenied: 'Watcha authorization was cancelled.',
-    watchaLoginFailed: 'Watcha sign-in failed. Please try again.',
+    authInvalidCredentials: 'Incorrect email or password.',
+    authEmailNotConfirmed: 'Verify your email before signing in.',
+    authInvalidEmail: 'Enter a valid email address.',
+    authWeakPassword: 'Password must contain at least 8 characters.',
+    authPasswordMismatch: 'The two passwords do not match.',
+    authInvalidOtp: 'The verification code is invalid or has expired.',
+    authUserExists: 'This email is already registered. Sign in or recover your password.',
     authError: 'Login failed. Please try again.',
     signOut: 'Sign out',
     account: 'Account',
@@ -221,7 +292,7 @@ const copy = {
     saveProfile: 'Save profile',
     profileSaved: 'Profile saved.',
     profileUpdateFailed: 'Profile update failed. Please try again.',
-    googleAvatarSource: 'Avatar is synced from your login provider.',
+    accountEmailSource: 'This email identifies your account, favorites, membership, and credits.',
     accountOverview: 'Account overview',
     totalGenerations: 'Generated tests',
     totalGenerationCredits: 'Credits spent',
@@ -346,7 +417,7 @@ const copy = {
     explore: '浏览案例',
     githubProject: 'GitHub 项目',
     sponsorProject: 'API',
-    sponsorProjectLabel: '打开 APIMart API',
+    sponsorProjectLabel: '配置 OpenAI 兼容接口',
     cases: '个案例',
     categories: '个分类',
     templates: '套模板',
@@ -445,6 +516,32 @@ const copy = {
     apimartActualCost: (cost) => `APIMart 实际费用：$${cost}`,
     apimartShowKey: '显示 API Key',
     apimartHideKey: '隐藏 API Key',
+    providerSettings: 'OpenAI 兼容接口配置',
+    providerTitle: '配置 OpenAI 兼容图片接口',
+    providerSubtitle: '填写厂商名称、Base URL、图片模型和 API Key；配置仅保存在当前浏览器。',
+    providerType: 'API 厂商',
+    providerApimart: 'APIMart',
+    providerCompatible: 'OpenAI 兼容 / 自定义',
+    providerName: '厂商名称',
+    providerNamePlaceholder: '例如：OpenAI、硅基流动、自建网关',
+    providerBaseUrl: 'Base URL',
+    providerBaseUrlPlaceholder: 'https://api.openai.com/v1',
+    providerModel: '图片模型',
+    providerModelPlaceholder: 'gpt-image-2',
+    providerApiKey: 'API Key',
+    providerApiKeyPlaceholder: '粘贴你的 API Key',
+    providerSaved: 'API 配置已验证，并保存到当前浏览器。',
+    providerCleared: '已删除当前浏览器保存的 API 配置。',
+    providerConfigInvalid: '请检查 Base URL、模型名称和 API Key。',
+    providerKeyInvalid: 'API Key 被厂商拒绝，请检查后重试。',
+    providerConnectionFailed: '浏览器无法连接该接口，请检查地址和 CORS 跨域设置。',
+    providerRequestFailed: '厂商拒绝了请求，请确认其图片接口兼容 OpenAI 格式。',
+    providerUnavailable: '该 API 厂商暂时不可用，请稍后再试。',
+    providerRateLimited: '该 API 厂商正在限流，请稍后重试。',
+    providerInvalidResponse: '厂商响应中没有可用的图片 URL 或 Base64 图片。',
+    providerLocalOnly: (name) => `完整 Key 只保存在当前浏览器，并且只发送给 ${name}。`,
+    providerPersonalMode: (name, masked, model) => `${name} · ${model} · ${masked}`,
+    providerVerifyHint: '验证会请求 GET /models；生图会请求 POST /images/generations。',
     usePlatformCredits: '登录使用平台额度',
     promptRequired: 'Prompt 不能为空，并且不能超过 10,000 字符。',
     serverUnavailable: '生成服务还没有完成配置。',
@@ -458,17 +555,53 @@ const copy = {
     alipayQueryFailed: '暂时无法确认支付宝结果，请勿重复付款；请刷新当前回跳页或联系支持。',
     authRequired: '登录后即可生成测试图。',
     signIn: '登录',
-    signInTitle: '登录后生成测试图',
-    signInSubtitle: '使用 Google 或观猹登录，解锁生图测试、积分和会员能力。',
+    signInTitle: '登录你的账户',
+    signInSubtitle: '登录后使用收藏、会员、积分和生图记录。',
+    registerTitle: '创建账户',
+    registerSubtitle: '使用邮箱注册，我们会发送一封包含六位验证码的邮件。',
+    signupOtpTitle: '验证邮箱',
+    signupOtpSubtitle: (email) => `请输入发送到 ${email} 的六位验证码。`,
+    forgotTitle: '找回账户',
+    forgotSubtitle: '输入注册邮箱，我们会发送一封包含六位验证码的邮件。',
+    recoveryOtpTitle: '输入找回验证码',
+    recoveryOtpSubtitle: (email) => `如果 ${email} 已注册，六位验证码已发送。`,
+    resetPasswordTitle: '设置新密码',
+    resetPasswordSubtitle: '为你的账户设置一个新密码。',
+    emailLabel: '邮箱',
+    emailPlaceholder: 'you@example.com',
+    passwordLabel: '密码',
+    passwordPlaceholder: '请输入密码',
+    confirmPasswordLabel: '确认密码',
+    confirmPasswordPlaceholder: '请再次输入密码',
+    newPasswordLabel: '新密码',
+    newPasswordPlaceholder: '请输入新密码',
+    verificationCodeLabel: '验证码',
+    verificationCodePlaceholder: '六位验证码',
+    passwordRule: '密码至少需要 8 位。',
+    createAccount: '注册账户',
+    verifyEmail: '验证并继续',
+    forgotPassword: '忘记密码？',
+    recoverAccount: '发送找回验证码',
+    verifyRecovery: '验证验证码',
+    updatePassword: '设置新密码',
+    noAccount: '还没有账户？',
+    haveAccount: '已经有账户？',
+    backToSignIn: '返回登录',
+    changeEmail: '更换邮箱',
+    resendCode: '重新发送验证码',
+    resendCountdown: (seconds) => `${seconds} 秒后可重新发送`,
+    signupCodeSent: '验证码已发送，请检查收件箱和垃圾邮件。',
+    recoveryCodeSent: '如果该邮箱已注册，找回验证码已发送，请检查收件箱和垃圾邮件。',
+    passwordUpdated: '密码设置成功。',
     authRateLimited: '登录尝试过于频繁，请稍后再试。',
-    googleNotConfigured: 'Google 登录还没有启用。',
-    continueWithGoogle: '使用 Google 登录',
-    continueWithWatcha: '使用观猹登录',
     authNotConfigured: '登录功能还没有完成配置。',
-    watchaNotConfigured: '观猹登录还没有完成配置。',
-    watchaSessionExpired: '观猹登录已过期，请重新尝试。',
-    watchaDenied: '已取消观猹授权。',
-    watchaLoginFailed: '观猹登录失败，请稍后再试。',
+    authInvalidCredentials: '邮箱或密码不正确。',
+    authEmailNotConfirmed: '请先完成邮箱验证再登录。',
+    authInvalidEmail: '请输入有效的邮箱地址。',
+    authWeakPassword: '密码至少需要 8 位。',
+    authPasswordMismatch: '两次输入的密码不一致。',
+    authInvalidOtp: '验证码错误或已经过期。',
+    authUserExists: '该邮箱已经注册，请直接登录或找回密码。',
     authError: '登录失败，请稍后再试。',
     signOut: '退出登录',
     account: '账号',
@@ -479,7 +612,7 @@ const copy = {
     saveProfile: '保存资料',
     profileSaved: '资料已保存。',
     profileUpdateFailed: '资料保存失败，请稍后再试。',
-    googleAvatarSource: '头像会同步你的登录账号头像。',
+    accountEmailSource: '该邮箱关联你的账户、收藏、会员和积分。',
     accountOverview: '账户概览',
     totalGenerations: '生成测试数',
     totalGenerationCredits: '已消耗积分',
@@ -912,6 +1045,13 @@ function generationErrorMessage(error, language) {
   if (error === 'APIMART_UNAVAILABLE') return t.apimartUnavailable;
   if (error === 'APIMART_TASK_FAILED') return t.apimartTaskFailed;
   if (error === 'APIMART_TASK_TIMEOUT') return t.apimartTaskTimeout;
+  if (error === 'PROVIDER_CONFIG_INVALID') return t.providerConfigInvalid;
+  if (error === 'PROVIDER_API_KEY_INVALID') return t.providerKeyInvalid;
+  if (error === 'PROVIDER_CONNECTION_FAILED') return t.providerConnectionFailed;
+  if (error === 'PROVIDER_REQUEST_FAILED') return t.providerRequestFailed;
+  if (error === 'PROVIDER_UNAVAILABLE') return t.providerUnavailable;
+  if (error === 'PROVIDER_RATE_LIMITED') return t.providerRateLimited;
+  if (error === 'PROVIDER_INVALID_RESPONSE') return t.providerInvalidResponse;
   if (error === 'SERVER_NOT_CONFIGURED') return t.serverUnavailable;
   if (
     error === 'BILLING_NOT_CONFIGURED'
@@ -1105,7 +1245,7 @@ function formatTemplatePrompt(item, language, styleLibrary) {
   ].join('\n');
 }
 
-function Hero({ latestCases, language, repoUrl, totalCases, categoryCount, onOpenCase }) {
+function Hero({ latestCases, language, repoUrl, totalCases, categoryCount, onOpenCase, onApiSettings }) {
   const t = copy[language];
 
   return (
@@ -1129,16 +1269,15 @@ function Hero({ latestCases, language, repoUrl, totalCases, categoryCount, onOpe
             <Github size={18} />
             {t.githubProject}
           </a>
-          <a
+          <button
+            type="button"
             className="secondaryAction sponsorAction"
-            href={sponsorUrl}
-            target="_blank"
-            rel="noreferrer"
             aria-label={t.sponsorProjectLabel}
+            onClick={onApiSettings}
           >
-            <Heart size={18} />
+            <KeyRound size={18} />
             {t.sponsorProject}
-          </a>
+          </button>
         </div>
         <div className="metrics">
           <span><strong>{totalCases}</strong> {t.cases}</span>
@@ -1270,132 +1409,340 @@ function CommunityNavItem({ language }) {
   );
 }
 
-function authErrorMessage(error, language) {
+function authMessageForCode(code, language) {
   const t = copy[language];
-  const message = String(error?.message || error || '').trim();
-  const normalized = message.toLowerCase();
-
-  if (error?.status === 429 || normalized.includes('rate limit') || normalized.includes('too many')) {
-    return t.authRateLimited;
-  }
-
-  if (normalized.includes('provider') || normalized.includes('oauth')) {
-    return t.googleNotConfigured;
-  }
-
-  return message || t.authError;
+  const messages = {
+    [AUTH_ERROR_CODES.NOT_CONFIGURED]: t.authNotConfigured,
+    [AUTH_ERROR_CODES.RATE_LIMITED]: t.authRateLimited,
+    [AUTH_ERROR_CODES.INVALID_CREDENTIALS]: t.authInvalidCredentials,
+    [AUTH_ERROR_CODES.EMAIL_NOT_CONFIRMED]: t.authEmailNotConfirmed,
+    [AUTH_ERROR_CODES.INVALID_EMAIL]: t.authInvalidEmail,
+    [AUTH_ERROR_CODES.WEAK_PASSWORD]: t.authWeakPassword,
+    [AUTH_ERROR_CODES.PASSWORD_MISMATCH]: t.authPasswordMismatch,
+    [AUTH_ERROR_CODES.INVALID_OTP]: t.authInvalidOtp,
+    [AUTH_ERROR_CODES.USER_EXISTS]: t.authUserExists
+  };
+  return messages[code] || t.authError;
 }
 
-function authRedirectErrorMessage(code, language) {
+function AuthModal({ open, language, onClose }) {
   const t = copy[language];
-  if (code === 'watcha_not_configured') return t.watchaNotConfigured;
-  if (code === 'supabase_not_configured') return t.authNotConfigured;
-  if (code === 'watcha_state_failed') return t.watchaSessionExpired;
-  if (code === 'watcha_denied') return t.watchaDenied;
-  if (code === 'watcha_login_failed') return t.watchaLoginFailed;
-  return t.authError;
-}
-
-function GoogleIcon() {
-  return (
-    <svg className="googleIcon" viewBox="0 0 18 18" aria-hidden="true" focusable="false">
-      <path fill="#4285F4" d="M17.64 9.2c0-.64-.06-1.25-.16-1.84H9v3.48h4.84a4.14 4.14 0 0 1-1.8 2.71v2.25h2.91c1.7-1.57 2.69-3.89 2.69-6.6z" />
-      <path fill="#34A853" d="M9 18c2.43 0 4.47-.8 5.96-2.18l-2.91-2.25c-.8.54-1.83.86-3.05.86-2.35 0-4.34-1.58-5.05-3.71H.94v2.33A9 9 0 0 0 9 18z" />
-      <path fill="#FBBC05" d="M3.95 10.72A5.41 5.41 0 0 1 3.67 9c0-.6.1-1.18.28-1.72V4.95H.94A9 9 0 0 0 0 9c0 1.45.34 2.82.94 4.05l3.01-2.33z" />
-      <path fill="#EA4335" d="M9 3.57c1.32 0 2.51.45 3.44 1.35l2.58-2.58C13.46.89 11.43 0 9 0A9 9 0 0 0 .94 4.95l3.01 2.33C4.66 5.15 6.65 3.57 9 3.57z" />
-    </svg>
-  );
-}
-
-function WatchaIcon() {
-  return <img className="watchaIcon" src={watchaLogoUrl} alt="" aria-hidden="true" loading="lazy" />;
-}
-
-function AuthModal({ open, language, initialErrorCode, onClose }) {
-  const t = copy[language];
+  const [mode, setMode] = useState('login');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [confirmation, setConfirmation] = useState('');
+  const [token, setToken] = useState('');
   const [status, setStatus] = useState('idle');
   const [message, setMessage] = useState('');
+  const [cooldown, setCooldown] = useState(0);
+  const closeTimerRef = useRef(null);
   useBodyScrollLock(open);
 
   useEffect(() => {
-    if (!open) return;
-    if (initialErrorCode) {
-      setStatus('error');
-      setMessage(authRedirectErrorMessage(initialErrorCode, language));
-      return;
+    if (closeTimerRef.current) {
+      window.clearTimeout(closeTimerRef.current);
+      closeTimerRef.current = null;
     }
+    if (!open) return;
+    setMode('login');
+    setEmail('');
+    setPassword('');
+    setConfirmation('');
+    setToken('');
     setStatus('idle');
     setMessage('');
-  }, [open, initialErrorCode, language]);
+    setCooldown(0);
+  }, [open]);
+
+  useEffect(() => {
+    if (!open || cooldown <= 0) return undefined;
+    const timer = window.setTimeout(() => setCooldown((value) => Math.max(0, value - 1)), 1000);
+    return () => window.clearTimeout(timer);
+  }, [open, cooldown]);
 
   if (!open) return null;
 
-  const redirectTo = `${window.location.origin}${window.location.pathname}`;
-  const isLoading = status === 'loading-google' || status === 'loading-watcha';
+  const isLoading = status === 'loading';
+  const titles = {
+    login: [t.signInTitle, t.signInSubtitle],
+    register: [t.registerTitle, t.registerSubtitle],
+    'verify-signup': [t.signupOtpTitle, t.signupOtpSubtitle(email)],
+    forgot: [t.forgotTitle, t.forgotSubtitle],
+    'verify-recovery': [t.recoveryOtpTitle, t.recoveryOtpSubtitle(email)],
+    'reset-password': [t.resetPasswordTitle, t.resetPasswordSubtitle]
+  };
+  const [title, subtitle] = titles[mode];
 
-  async function handleGoogleSignIn() {
-    if (!isSupabaseConfigured || !supabase) {
-      setStatus('error');
-      setMessage(t.authNotConfigured);
-      return;
-    }
+  function showError(code) {
+    setStatus('error');
+    setMessage(authMessageForCode(code, language));
+  }
 
-    setStatus('loading-google');
+  function showAuthError(error) {
+    showError(error?.code === AUTH_ERROR_CODES.NOT_CONFIGURED ? error.code : mapAuthError(error));
+  }
+
+  function switchMode(nextMode) {
+    setMode(nextMode);
+    setPassword('');
+    setConfirmation('');
+    setToken('');
+    setStatus('idle');
     setMessage('');
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider: 'google',
-      options: {
-        redirectTo
+    setCooldown(0);
+  }
+
+  function ensureConfigured() {
+    if (isSupabaseConfigured && supabase) return true;
+    showError(AUTH_ERROR_CODES.NOT_CONFIGURED);
+    return false;
+  }
+
+  function validateEmail() {
+    if (isValidEmail(email)) return true;
+    showError(AUTH_ERROR_CODES.INVALID_EMAIL);
+    return false;
+  }
+
+  function validatePasswordFields() {
+    const code = passwordValidationCode(password, confirmation);
+    if (!code) return true;
+    showError(code);
+    return false;
+  }
+
+  async function handleSubmit(event) {
+    event.preventDefault();
+    if (isLoading || !ensureConfigured()) return;
+    setStatus('loading');
+    setMessage('');
+
+    try {
+      if (mode === 'login') {
+        if (!validateEmail()) return;
+        const { error } = await signInWithEmail(supabase, { email, password });
+        if (error) return showAuthError(error);
+        onClose();
+        return;
       }
-    });
 
-    if (error) {
-      setStatus('error');
-      setMessage(authErrorMessage(error, language));
+      if (mode === 'register') {
+        if (!validateEmail() || !validatePasswordFields()) return;
+        const { data, error } = await signUpWithEmail(supabase, { email, password });
+        if (error) return showAuthError(error);
+        if (data?.user?.identities && data.user.identities.length === 0) {
+          showError(AUTH_ERROR_CODES.USER_EXISTS);
+          return;
+        }
+        if (data?.session) {
+          onClose();
+          return;
+        }
+        setEmail(normalizeEmail(email));
+        setMode('verify-signup');
+        setPassword('');
+        setConfirmation('');
+        setCooldown(AUTH_RESEND_COOLDOWN_SECONDS);
+        setStatus('success');
+        setMessage(t.signupCodeSent);
+        return;
+      }
+
+      if (mode === 'verify-signup') {
+        if (!isValidOtp(token)) return showError(AUTH_ERROR_CODES.INVALID_OTP);
+        const { error } = await verifySignupCode(supabase, { email, token });
+        if (error) return showAuthError(error);
+        onClose();
+        return;
+      }
+
+      if (mode === 'forgot') {
+        if (!validateEmail()) return;
+        const { error } = await requestPasswordRecovery(supabase, { email });
+        if (error) return showAuthError(error);
+        setEmail(normalizeEmail(email));
+        setMode('verify-recovery');
+        setCooldown(AUTH_RESEND_COOLDOWN_SECONDS);
+        setStatus('success');
+        setMessage(t.recoveryCodeSent);
+        return;
+      }
+
+      if (mode === 'verify-recovery') {
+        if (!isValidOtp(token)) return showError(AUTH_ERROR_CODES.INVALID_OTP);
+        const { error } = await verifyRecoveryCode(supabase, { email, token });
+        if (error) return showAuthError(error);
+        setMode('reset-password');
+        setToken('');
+        setStatus('idle');
+        return;
+      }
+
+      if (mode === 'reset-password') {
+        if (!validatePasswordFields()) return;
+        const { error } = await updateRecoveredPassword(supabase, { password });
+        if (error) return showAuthError(error);
+        setStatus('success');
+        setMessage(t.passwordUpdated);
+        closeTimerRef.current = window.setTimeout(onClose, 700);
+      }
+    } catch (error) {
+      showAuthError(error);
     }
   }
 
-  function handleWatchaSignIn() {
-    if (!isSupabaseConfigured || !supabase) {
-      setStatus('error');
-      setMessage(t.authNotConfigured);
-      return;
-    }
-
-    setStatus('loading-watcha');
+  async function handleResend() {
+    if (isLoading || cooldown > 0 || !ensureConfigured()) return;
+    setStatus('loading');
     setMessage('');
-    window.location.assign(`/api/auth/watcha/start?returnTo=${encodeURIComponent(redirectTo)}`);
+    try {
+      const result = mode === 'verify-signup'
+        ? await resendSignupCode(supabase, { email })
+        : await requestPasswordRecovery(supabase, { email });
+      if (result?.error) return showAuthError(result.error);
+      setCooldown(AUTH_RESEND_COOLDOWN_SECONDS);
+      setStatus('success');
+      setMessage(mode === 'verify-signup' ? t.signupCodeSent : t.recoveryCodeSent);
+    } catch (error) {
+      showAuthError(error);
+    }
   }
+
+  const submitLabels = {
+    login: t.signIn,
+    register: t.createAccount,
+    'verify-signup': t.verifyEmail,
+    forgot: t.recoverAccount,
+    'verify-recovery': t.verifyRecovery,
+    'reset-password': t.updatePassword
+  };
+  const showsEmail = mode === 'login' || mode === 'register' || mode === 'forgot';
+  const showsPassword = mode === 'login' || mode === 'register' || mode === 'reset-password';
+  const showsConfirmation = mode === 'register' || mode === 'reset-password';
+  const showsOtp = mode === 'verify-signup' || mode === 'verify-recovery';
 
   return (
     <div
       className="previewOverlay authOverlay"
       role="presentation"
       onMouseDown={(event) => {
-        if (event.target === event.currentTarget) onClose();
+        if (event.target === event.currentTarget && !isLoading) onClose();
       }}
     >
       <section className="authDialog" role="dialog" aria-modal="true" aria-labelledby="auth-title">
-        <button className="previewClose" type="button" onClick={onClose} aria-label={t.closePreview}>
+        <button className="previewClose" type="button" onClick={onClose} disabled={isLoading} aria-label={t.closePreview}>
           <X size={20} />
         </button>
         <div className="authIcon">
-          <UserCircle size={28} />
+          {showsOtp ? <ShieldCheck size={28} /> : mode === 'reset-password' ? <KeyRound size={28} /> : <UserCircle size={28} />}
         </div>
-        <h2 id="auth-title">{t.signInTitle}</h2>
-        <p>{t.signInSubtitle}</p>
-        <div className="authProviders" aria-label={t.signInTitle}>
-          <button className="googleButton" type="button" onClick={handleGoogleSignIn} disabled={isLoading}>
-            {status === 'loading-google' ? <LoaderCircle className="spinIcon" size={18} /> : <GoogleIcon />}
-            {t.continueWithGoogle}
+        <h2 id="auth-title">{title}</h2>
+        <p>{subtitle}</p>
+
+        <form className="authForm" onSubmit={handleSubmit}>
+          {showsEmail ? (
+            <label className="authField">
+              <span>{t.emailLabel}</span>
+              <input
+                type="email"
+                value={email}
+                autoComplete="email"
+                placeholder={t.emailPlaceholder}
+                disabled={isLoading}
+                onChange={(event) => setEmail(event.target.value)}
+              />
+            </label>
+          ) : null}
+
+          {showsPassword ? (
+            <label className="authField">
+              <span>{mode === 'reset-password' ? t.newPasswordLabel : t.passwordLabel}</span>
+              <input
+                type="password"
+                value={password}
+                minLength={mode === 'login' ? undefined : 8}
+                autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
+                placeholder={mode === 'reset-password' ? t.newPasswordPlaceholder : t.passwordPlaceholder}
+                disabled={isLoading}
+                onChange={(event) => setPassword(event.target.value)}
+              />
+            </label>
+          ) : null}
+
+          {showsConfirmation ? (
+            <label className="authField">
+              <span>{t.confirmPasswordLabel}</span>
+              <input
+                type="password"
+                value={confirmation}
+                minLength={8}
+                autoComplete="new-password"
+                placeholder={t.confirmPasswordPlaceholder}
+                disabled={isLoading}
+                onChange={(event) => setConfirmation(event.target.value)}
+              />
+              <small>{t.passwordRule}</small>
+            </label>
+          ) : null}
+
+          {showsOtp ? (
+            <label className="authField authOtpField">
+              <span>{t.verificationCodeLabel}</span>
+              <input
+                type="text"
+                value={token}
+                inputMode="numeric"
+                autoComplete="one-time-code"
+                maxLength={6}
+                placeholder={t.verificationCodePlaceholder}
+                disabled={isLoading}
+                onChange={(event) => setToken(normalizeOtp(event.target.value))}
+              />
+            </label>
+          ) : null}
+
+          {mode === 'login' ? (
+            <button className="authTextButton authForgotButton" type="button" disabled={isLoading} onClick={() => switchMode('forgot')}>
+              {t.forgotPassword}
+            </button>
+          ) : null}
+
+          <button className="authPrimaryButton" type="submit" disabled={isLoading}>
+            {isLoading ? <LoaderCircle className="spinIcon" size={18} /> : mode === 'register' ? <UserPlus size={18} /> : <Check size={18} />}
+            {submitLabels[mode]}
           </button>
-          <button className="watchaButton" type="button" onClick={handleWatchaSignIn} disabled={isLoading}>
-            {status === 'loading-watcha' ? <LoaderCircle className="spinIcon" size={18} /> : <WatchaIcon />}
-            {t.continueWithWatcha}
-          </button>
-        </div>
+        </form>
+
+        {mode === 'login' || mode === 'register' ? (
+          <div className="authSwitchRow">
+            <span>{mode === 'login' ? t.noAccount : t.haveAccount}</span>
+            <button className="authTextButton" type="button" onClick={() => switchMode(mode === 'login' ? 'register' : 'login')} disabled={isLoading}>
+              {mode === 'login' ? t.createAccount : t.signIn}
+            </button>
+          </div>
+        ) : null}
+
+        {mode === 'forgot' ? (
+          <div className="authSwitchRow">
+            <button className="authTextButton" type="button" onClick={() => switchMode('login')} disabled={isLoading}>
+              {t.backToSignIn}
+            </button>
+          </div>
+        ) : null}
+
+        {showsOtp ? (
+          <div className="authOtpActions">
+            <button className="authTextButton" type="button" onClick={handleResend} disabled={isLoading || cooldown > 0}>
+              {cooldown > 0 ? t.resendCountdown(cooldown) : t.resendCode}
+            </button>
+            <button className="authTextButton" type="button" onClick={() => switchMode(mode === 'verify-signup' ? 'register' : 'forgot')} disabled={isLoading}>
+              {t.changeEmail}
+            </button>
+          </div>
+        ) : null}
+
         {message ? (
-          <p className={cx('authMessage', status === 'error' && 'error', status === 'sent' && 'sent')}>
+          <p className={cx('authMessage', status === 'error' && 'error', status === 'success' && 'sent')} role="status">
             {message}
           </p>
         ) : null}
@@ -1404,9 +1751,9 @@ function AuthModal({ open, language, initialErrorCode, onClose }) {
   );
 }
 
-function ApiKeyModal({ open, language, apiKey, price, priceMeta, onClose, onSaved, onCleared }) {
+function ApiKeyModal({ open, language, config, onClose, onSaved, onCleared }) {
   const t = copy[language];
-  const [input, setInput] = useState('');
+  const [draft, setDraft] = useState(DEFAULT_PERSONAL_PROVIDER);
   const [showKey, setShowKey] = useState(false);
   const [status, setStatus] = useState('idle');
   const [message, setMessage] = useState('');
@@ -1414,11 +1761,11 @@ function ApiKeyModal({ open, language, apiKey, price, priceMeta, onClose, onSave
 
   useEffect(() => {
     if (!open) return;
-    setInput(apiKey || '');
+    setDraft(normalizePersonalProvider(config));
     setShowKey(false);
     setStatus('idle');
     setMessage('');
-  }, [open, apiKey]);
+  }, [open, config]);
 
   useEffect(() => {
     if (!open) return undefined;
@@ -1433,25 +1780,19 @@ function ApiKeyModal({ open, language, apiKey, price, priceMeta, onClose, onSave
 
   async function handleSave(event) {
     event.preventDefault();
-    const nextKey = input.trim();
-    if (!nextKey || nextKey.length > 512 || /[\r\n]/.test(nextKey)) {
-      setStatus('error');
-      setMessage(t.apimartKeyInvalid);
-      return;
-    }
-
     setStatus('loading');
     setMessage('');
     try {
-      await verifyPersonalApimartKey(nextKey);
-      if (!saveStoredApimartKey(nextKey)) {
+      const nextConfig = normalizePersonalProvider(draft);
+      await verifyPersonalProvider(nextConfig);
+      if (!saveStoredPersonalProvider(nextConfig)) {
         setStatus('error');
         setMessage(t.apimartStorageFailed);
         return;
       }
-      onSaved(nextKey);
+      onSaved(nextConfig);
       setStatus('success');
-      setMessage(t.apimartKeySaved);
+      setMessage(t.providerSaved);
     } catch (error) {
       setStatus('error');
       setMessage(generationErrorMessage(error?.code || error?.message, language));
@@ -1459,13 +1800,15 @@ function ApiKeyModal({ open, language, apiKey, price, priceMeta, onClose, onSave
   }
 
   function handleClear() {
-    clearStoredApimartKey();
-    setInput('');
+    clearStoredPersonalProvider();
+    setDraft(DEFAULT_PERSONAL_PROVIDER);
     setShowKey(false);
     setStatus('success');
-    setMessage(t.apimartKeyCleared);
+    setMessage(t.providerCleared);
     onCleared();
   }
+
+  const providerLabel = draft.providerName || t.providerCompatible;
 
   return (
     <div
@@ -1475,31 +1818,64 @@ function ApiKeyModal({ open, language, apiKey, price, priceMeta, onClose, onSave
         if (event.target === event.currentTarget && status !== 'loading') onClose();
       }}
     >
-      <section className="apiKeyDialog" role="dialog" aria-modal="true" aria-labelledby="apimart-key-title">
+      <section className="apiKeyDialog" role="dialog" aria-modal="true" aria-labelledby="provider-key-title">
         <button className="previewClose" type="button" onClick={onClose} aria-label={t.closePreview} disabled={status === 'loading'}>
           <X size={20} />
         </button>
         <div className="apiKeyHeading">
           <span className="authIcon"><KeyRound size={28} /></span>
           <div>
-            <span className="eyebrow">{t.apimartApiSettings}</span>
-            <h2 id="apimart-key-title">{t.apimartApiTitle}</h2>
-            <p>{t.apimartApiSubtitle}</p>
+            <span className="eyebrow">{t.providerSettings}</span>
+            <h2 id="provider-key-title">{t.providerTitle}</h2>
+            <p>{t.providerSubtitle}</p>
           </div>
         </div>
 
         <form className="apiKeyForm" onSubmit={handleSave}>
-          <label htmlFor="apimart-api-key">{t.apimartApiKey}</label>
+          <div className="apiProviderGrid">
+              <label>
+                <span>{t.providerName}</span>
+                <input
+                  value={draft.providerName}
+                  maxLength={80}
+                  placeholder={t.providerNamePlaceholder}
+                  onChange={(event) => setDraft((current) => ({ ...current, providerName: event.target.value }))}
+                />
+              </label>
+              <label>
+                <span>{t.providerBaseUrl}</span>
+                <input
+                  type="url"
+                  value={draft.baseUrl}
+                  maxLength={500}
+                  placeholder={t.providerBaseUrlPlaceholder}
+                  spellCheck="false"
+                  onChange={(event) => setDraft((current) => ({ ...current, baseUrl: event.target.value }))}
+                />
+              </label>
+              <label>
+                <span>{t.providerModel}</span>
+                <input
+                  value={draft.model}
+                  maxLength={160}
+                  placeholder={t.providerModelPlaceholder}
+                  spellCheck="false"
+                  onChange={(event) => setDraft((current) => ({ ...current, model: event.target.value }))}
+                />
+              </label>
+          </div>
+
+          <label htmlFor="personal-api-key">{t.providerApiKey}</label>
           <div className="apiKeyInputRow">
             <input
-              id="apimart-api-key"
+              id="personal-api-key"
               type={showKey ? 'text' : 'password'}
-              value={input}
+              value={draft.apiKey}
               maxLength={512}
               autoComplete="off"
               spellCheck="false"
-              placeholder={t.apimartApiPlaceholder}
-              onChange={(event) => setInput(event.target.value)}
+              placeholder={t.providerApiKeyPlaceholder}
+              onChange={(event) => setDraft((current) => ({ ...current, apiKey: event.target.value }))}
             />
             <button
               type="button"
@@ -1511,18 +1887,15 @@ function ApiKeyModal({ open, language, apiKey, price, priceMeta, onClose, onSave
               {showKey ? <EyeOff size={18} /> : <Eye size={18} />}
             </button>
           </div>
-          {apiKey ? <div className="apiKeyMask"><Check size={15} /> {maskApimartKey(apiKey)}</div> : null}
-          <p className="apiKeyLocalNote"><ShieldCheck size={16} /> {t.apimartLocalOnly}</p>
-          <p className="apiKeyPriceNote">{t.apimartPriceNote(formatApimartPrice(price))}</p>
-          {priceMeta?.stale ? (
-            <p className="apiKeyFallback">{t.apimartPriceFallback(priceMeta.snapshotDate || APIMART_PRICE_SNAPSHOT_DATE)}</p>
-          ) : null}
+          {config?.apiKey ? <div className="apiKeyMask"><Check size={15} /> {maskProviderKey(config.apiKey)}</div> : null}
+          <p className="apiKeyLocalNote"><ShieldCheck size={16} /> {t.providerLocalOnly(providerLabel)}</p>
+          <p className="apiKeyPriceNote">{t.providerVerifyHint}</p>
           <div className="apiKeyActions">
             <button className="apiKeySave" type="submit" disabled={status === 'loading'}>
               {status === 'loading' ? <LoaderCircle className="spinIcon" size={17} /> : <Check size={17} />}
               {status === 'loading' ? t.apimartVerifying : t.apimartVerifySave}
             </button>
-            {apiKey ? (
+            {config?.apiKey ? (
               <button className="apiKeyClear" type="button" onClick={handleClear} disabled={status === 'loading'}>
                 <X size={17} />
                 {t.apimartClearKey}
@@ -1531,14 +1904,6 @@ function ApiKeyModal({ open, language, apiKey, price, priceMeta, onClose, onSave
           </div>
         </form>
 
-        <div className="apiKeyLinks">
-          <a href={sponsorUrl} target="_blank" rel="noreferrer">
-            {t.apimartRegister}<ArrowUpRight size={16} />
-          </a>
-          <a href={apimartKeysUrl} target="_blank" rel="noreferrer">
-            {t.apimartGetKey}<ArrowUpRight size={16} />
-          </a>
-        </div>
         {message ? <p className={cx('authMessage', status === 'error' && 'error', status === 'success' && 'sent')}>{message}</p> : null}
       </section>
     </div>
@@ -1685,8 +2050,7 @@ function AccountPanel({
   casesById,
   favoriteRows,
   initialSection,
-  apimartKey,
-  apimartPrice,
+  personalProvider,
   onClose,
   onBilling,
   onApiKeySettings,
@@ -1801,7 +2165,7 @@ function AccountPanel({
             <div className="accountEmail">
               <span>{t.account}</span>
               <strong>{email}</strong>
-              <em>{t.googleAvatarSource}</em>
+              <em>{t.accountEmailSource}</em>
             </div>
             <button type="submit" disabled={status === 'loading'}>
               {status === 'loading' ? <LoaderCircle className="spinIcon" size={16} /> : <Check size={16} />}
@@ -1844,12 +2208,14 @@ function AccountPanel({
         <section className="apiKeySettingsCard">
           <div className="apiKeySettingsIcon"><KeyRound size={22} /></div>
           <div>
-            <h3>{t.apimartApiSettings}</h3>
-            <p>{apiKey ? t.apimartPersonalMode(maskApimartKey(apiKey), formatApimartPrice(apimartPrice)) : t.apimartApiSubtitle}</p>
+            <h3>{t.providerSettings}</h3>
+            <p>{personalProvider?.apiKey
+              ? t.providerPersonalMode(personalProvider.providerName, maskProviderKey(personalProvider.apiKey), personalProvider.model)
+              : t.providerSubtitle}</p>
           </div>
           <button type="button" onClick={onApiKeySettings}>
             <Settings size={16} />
-            {apiKey ? t.apimartManageKey : t.apimartConfigureKey}
+            {personalProvider?.apiKey ? t.apimartManageKey : t.apimartConfigureKey}
           </button>
         </section>
 
@@ -3018,9 +3384,7 @@ function PreviewDialog({
   copiedId,
   session,
   profile,
-  apimartKey,
-  apimartPrice,
-  apimartPriceMeta,
+  personalProvider,
   favorite,
   favoriteBusy,
   onClose,
@@ -3032,6 +3396,7 @@ function PreviewDialog({
   onProfileChange
 }) {
   const t = copy[language];
+  const apimartKey = '';
   const repoDocsUrl = `${styleLibrary.repository || fallbackRepoUrl}/blob/main/${styleLibrary.templateDocument}`;
   const [editablePrompt, setEditablePrompt] = useState('');
   const [generationState, setGenerationState] = useState({
@@ -3044,9 +3409,6 @@ function PreviewDialog({
     cost: null,
     expiresAt: null
   });
-  const pollControllerRef = useRef(null);
-  const activeCaseRef = useRef(null);
-  activeCaseRef.current = preview?.type === 'case' ? preview.item.id : null;
   useBodyScrollLock(Boolean(preview));
 
   useEffect(() => {
@@ -3063,32 +3425,15 @@ function PreviewDialog({
   }, [preview, onClose]);
 
   useEffect(() => {
-    pollControllerRef.current?.abort();
-    pollControllerRef.current = null;
     if (preview?.type !== 'case') return undefined;
 
     const caseId = preview.item.id;
-    let controller = null;
     const savedGeneration = getSavedGeneration(preview.item.id);
     const pendingGeneration = getPendingGeneration(caseId);
     setEditablePrompt(pendingGeneration?.prompt || savedGeneration?.prompt || preview.item.prompt || '');
+    if (pendingGeneration) clearPendingGeneration(caseId);
 
-    if (pendingGeneration) {
-      setGenerationState({
-        status: 'generating',
-        image: '',
-        message: '',
-        progress: Number(pendingGeneration.progress || 0),
-        prompt: pendingGeneration.prompt || preview.item.prompt || '',
-        taskId: pendingGeneration.taskId,
-        mode: pendingGeneration.mode,
-        cost: null,
-        expiresAt: null
-      });
-      controller = new AbortController();
-      pollControllerRef.current = controller;
-      void pollPendingGeneration(caseId, pendingGeneration, controller);
-    } else if (savedGeneration) {
+    if (savedGeneration) {
       setGenerationState({
         status: 'saved',
         image: savedGeneration.image,
@@ -3116,117 +3461,8 @@ function PreviewDialog({
       });
     }
 
-    return () => {
-      controller?.abort();
-      pollControllerRef.current?.abort();
-    };
-  }, [preview?.type, preview?.item?.id, apimartKey, session?.access_token, session?.user?.id, language]);
-
-  function updateActiveGeneration(caseId, controller, nextState) {
-    if (activeCaseRef.current !== caseId || controller?.signal?.aborted) return;
-    setGenerationState((current) => (
-      typeof nextState === 'function' ? nextState(current) : nextState
-    ));
-  }
-
-  async function pollPendingGeneration(caseId, pending, controller) {
-    if (pending.mode === 'personal' && !apimartKey) {
-      updateActiveGeneration(caseId, controller, (current) => ({
-        ...current,
-        status: 'paused',
-        message: t.apimartPendingNeedsKey
-      }));
-      return;
-    }
-    if (pending.mode === 'platform' && (!session?.access_token || (pending.userId && pending.userId !== session?.user?.id))) {
-      updateActiveGeneration(caseId, controller, (current) => ({
-        ...current,
-        status: 'paused',
-        message: t.apimartPendingNeedsLogin
-      }));
-      return;
-    }
-
-    updateActiveGeneration(caseId, controller, (current) => ({
-      ...current,
-      status: 'generating',
-      message: '',
-      taskId: pending.taskId,
-      mode: pending.mode,
-      prompt: pending.prompt || current.prompt
-    }));
-
-    const fetchWithSignal = (url, options = {}) => fetch(url, { ...options, signal: controller.signal });
-    try {
-      const task = await pollApimartTask(async () => {
-        const nextTask = pending.mode === 'personal'
-          ? await fetchPersonalTask(pending.taskId, apimartKey, language, fetchWithSignal)
-          : await fetchPlatformTask(pending.taskId, session.access_token, language, fetchWithSignal);
-        if (nextTask?.user) onProfileChange(nextTask.user);
-        return nextTask;
-      }, {
-        signal: controller.signal,
-        onProgress: (nextTask) => {
-          const progress = Math.max(0, Math.min(100, Math.round(Number(nextTask.progress || 0))));
-          savePendingGeneration(caseId, { ...pending, progress, updatedAt: new Date().toISOString() });
-          updateActiveGeneration(caseId, controller, (current) => ({
-            ...current,
-            status: 'generating',
-            progress,
-            taskId: pending.taskId,
-            mode: pending.mode,
-            message: ''
-          }));
-        }
-      });
-
-      if (controller.signal.aborted) return;
-      if (task.status === 'completed' && task.image) {
-        const savedAt = new Date().toISOString();
-        const result = {
-          image: task.image,
-          prompt: pending.prompt,
-          savedAt,
-          taskId: pending.taskId,
-          mode: pending.mode,
-          expiresAt: task.expiresAt || null,
-          cost: task.cost ?? null
-        };
-        saveGeneratedTest(caseId, result);
-        clearPendingGeneration(caseId);
-        updateActiveGeneration(caseId, controller, {
-          status: 'success',
-          message: '',
-          progress: 100,
-          ...result
-        });
-        return;
-      }
-
-      clearPendingGeneration(caseId);
-      const code = task.status === 'failed' ? apimartTaskErrorCode(task) : 'APIMART_INVALID_RESPONSE';
-      updateActiveGeneration(caseId, controller, {
-        status: 'error',
-        image: '',
-        message: generationErrorMessage(code, language),
-        progress: Number(task.progress || 0),
-        prompt: pending.prompt,
-        taskId: pending.taskId,
-        mode: pending.mode,
-        cost: task.cost ?? null,
-        expiresAt: null
-      });
-    } catch (error) {
-      if (error?.code === 'APIMART_POLL_ABORTED' || error?.name === 'AbortError' || controller.signal.aborted) return;
-      updateActiveGeneration(caseId, controller, (current) => ({
-        ...current,
-        status: error?.code === 'APIMART_TASK_TIMEOUT' ? 'timeout' : 'error',
-        message: generationErrorMessage(error?.code || error?.message, language),
-        taskId: pending.taskId,
-        mode: pending.mode
-      }));
-    }
-  }
+    return undefined;
+  }, [preview?.type, preview?.item?.id, personalProvider?.apiKey, language]);
 
   if (!preview) return null;
 
@@ -3254,45 +3490,25 @@ function PreviewDialog({
   const pitfalls = listFor(item.pitfalls, language);
   const isGenerating = generationState.status === 'submitting' || generationState.status === 'generating';
   const generatedImage = !isTemplate ? generationState.image : '';
-  const hasPersonalKey = Boolean(apimartKey);
-  const isSignedIn = Boolean(session?.access_token);
-  const creditBalance = Number(profile?.creditBalance || 0);
-  const isOutOfCredits = isSignedIn
-    && creditBalance <= 0
-    && (profile?.isSuperAdmin || Boolean(profile?.freeUsed));
+  const hasPersonalKey = Boolean(personalProvider?.apiKey);
   const generationLocked = isGenerating;
-  const pendingGeneration = !isTemplate ? getPendingGeneration(item.id) : null;
-  const activeTaskMode = pendingGeneration?.mode
-    || (['submitting', 'generating', 'timeout', 'paused'].includes(generationState.status) ? generationState.mode : '');
-  const generationMode = activeTaskMode || (hasPersonalKey ? 'personal' : 'platform');
-  const quotaText = generationMode === 'personal'
-    ? hasPersonalKey
-      ? t.apimartPersonalMode(maskApimartKey(apimartKey), formatApimartPrice(apimartPrice))
-      : t.apimartPendingNeedsKey
-    : isSignedIn
-      ? `${t.apimartPlatformMode} · ${getGenerationQuotaText(profile, language)}`
-      : t.apimartAnonymousChoice;
+  const generationMode = 'personal';
+  const quotaText = hasPersonalKey
+    ? t.providerPersonalMode(
+        personalProvider.providerName,
+        maskProviderKey(personalProvider.apiKey),
+        personalProvider.model
+      )
+    : t.providerSubtitle;
   const generationButtonLabel = isGenerating
     ? t.generating
-    : pendingGeneration
-      ? t.apimartContinueChecking
-      : !hasPersonalKey && !isSignedIn
-        ? t.apimartConfigureKey
-        : !hasPersonalKey && isOutOfCredits
-          ? t.buyCredits
-          : t.generateImage;
+    : !hasPersonalKey
+      ? t.apimartConfigureKey
+      : t.generateImage;
 
   async function handleGenerate() {
     if (isTemplate || isGenerating) return;
-    const pending = getPendingGeneration(item.id);
-    if (pending) {
-      pollControllerRef.current?.abort();
-      const controller = new AbortController();
-      pollControllerRef.current = controller;
-      await pollPendingGeneration(item.id, pending, controller);
-      return;
-    }
-    if (!hasPersonalKey && !isSignedIn) {
+    if (!hasPersonalKey) {
       onApiKeySettings();
       return;
     }
@@ -3301,13 +3517,7 @@ function PreviewDialog({
       setGenerationState({ status: 'error', image: '', message: t.promptRequired });
       return;
     }
-    if (!hasPersonalKey && isOutOfCredits) {
-      onBillingRequired();
-      setGenerationState((current) => ({ ...current, status: 'idle', message: t.creditsRequired }));
-      return;
-    }
-
-    const mode = hasPersonalKey ? 'personal' : 'platform';
+    const mode = 'personal';
     setGenerationState({
       status: 'submitting',
       image: '',
@@ -3321,51 +3531,34 @@ function PreviewDialog({
     });
 
     try {
-      const submitted = mode === 'personal'
-        ? await submitPersonalGeneration(prompt, apimartKey, language)
-        : await submitPlatformGeneration({
-            caseId: item.id,
-            prompt,
-            language,
-            accessToken: session.access_token
-          });
-      if (submitted.user) onProfileChange(submitted.user);
-      const pendingEntry = {
-        taskId: submitted.taskId,
-        mode,
-        prompt,
-        userId: mode === 'platform' ? session.user?.id || '' : '',
-        createdAt: new Date().toISOString(),
-        progress: 0
-      };
-      savePendingGeneration(item.id, pendingEntry);
-
-      if (activeCaseRef.current === item.id) {
-        setGenerationState((current) => ({
-          ...current,
-          status: 'generating',
-          taskId: submitted.taskId,
-          mode
-        }));
-        const controller = new AbortController();
-        pollControllerRef.current = controller;
-        await pollPendingGeneration(item.id, pendingEntry, controller);
-      }
-    } catch (error) {
-      if (error?.user) onProfileChange(error.user);
-      if (error?.code === 'AUTH_REQUIRED') {
-        if (activeCaseRef.current === item.id) {
-          onAuthRequired();
-        }
+      const submitted = await submitPersonalProviderGeneration(prompt, personalProvider, language);
+      if (submitted.status === 'completed' && submitted.image) {
+        const savedAt = new Date().toISOString();
+        const result = {
+          image: submitted.image,
+          prompt,
+          savedAt,
+          taskId: submitted.taskId || '',
+          mode,
+          expiresAt: submitted.expiresAt || null,
+          cost: submitted.cost ?? null
+        };
+        saveGeneratedTest(item.id, result);
+        setGenerationState({
+          status: 'success',
+          message: '',
+          progress: 100,
+          ...result
+        });
         return;
       }
-      if (activeCaseRef.current === item.id) {
-        setGenerationState((current) => ({
-          ...current,
-          status: 'error',
-          message: generationErrorMessage(error?.code || error?.message, language)
-        }));
-      }
+      throw new Error('PROVIDER_INVALID_RESPONSE');
+    } catch (error) {
+      setGenerationState((current) => ({
+        ...current,
+        status: 'error',
+        message: generationErrorMessage(error?.code || error?.message, language)
+      }));
     }
   }
 
@@ -3480,8 +3673,8 @@ function PreviewDialog({
           {!isTemplate ? (
             <div className="generationPanel">
               <div className="generationModeRow">
-                <div className={cx('generationQuota', generationMode === 'platform' && (!isSignedIn || isOutOfCredits) && 'used')}>
-                  {generationMode === 'personal' ? <KeyRound size={14} /> : <Coins size={14} />}
+                <div className="generationQuota">
+                  <KeyRound size={14} />
                   {quotaText}
                 </div>
                 <button className="generationSettingsButton" type="button" onClick={onApiKeySettings} disabled={generationLocked}>
@@ -3489,10 +3682,6 @@ function PreviewDialog({
                   {hasPersonalKey ? t.apimartManageKey : t.apimartConfigureKey}
                 </button>
               </div>
-              <p className="generationPriceNote">{t.apimartPriceNote(formatApimartPrice(apimartPrice))}</p>
-              {apimartPriceMeta?.stale ? (
-                <p className="generationFallbackNote">{t.apimartPriceFallback(apimartPriceMeta.snapshotDate || APIMART_PRICE_SNAPSHOT_DATE)}</p>
-              ) : null}
               {isGenerating && generationState.taskId ? (
                 <div className="generationProgress" aria-live="polite">
                   <div>
@@ -3507,12 +3696,6 @@ function PreviewDialog({
                   {isGenerating ? <LoaderCircle className="spinIcon" size={17} /> : <ImageIcon size={17} />}
                   {generationButtonLabel}
                 </button>
-                {!hasPersonalKey && !isSignedIn ? (
-                  <button className="generationSecondaryButton" type="button" onClick={onAuthRequired} disabled={generationLocked}>
-                    <LogIn size={17} />
-                    {t.usePlatformCredits}
-                  </button>
-                ) : null}
               </div>
               {generationState.taskId ? (
                 <div className="generationTaskId">
@@ -3595,7 +3778,6 @@ function App() {
   const [favoriteBusyId, setFavoriteBusyId] = useState(null);
   const [favoriteMessage, setFavoriteMessage] = useState('');
   const [authOpen, setAuthOpen] = useState(false);
-  const [authErrorCode, setAuthErrorCode] = useState('');
   const [accountOpen, setAccountOpen] = useState(false);
   const [accountInitialSection, setAccountInitialSection] = useState('overview');
   const [adminOpen, setAdminOpen] = useState(false);
@@ -3603,17 +3785,11 @@ function App() {
   const [billingNotice, setBillingNotice] = useState('');
   const [billingReturnOrderId, setBillingReturnOrderId] = useState('');
   const alipayReturnHandledRef = useRef('');
-  const [apimartKey, setApimartKey] = useState(() => getStoredApimartKey());
+  const [personalProvider, setPersonalProvider] = useState(() => getStoredPersonalProvider());
   const [apiKeyOpen, setApiKeyOpen] = useState(false);
-  const [apimartPriceMeta, setApimartPriceMeta] = useState({
-    prices: { '1k': APIMART_DEFAULT_PRICE_USD },
-    stale: true,
-    snapshotDate: APIMART_PRICE_SNAPSHOT_DATE
-  });
   const { copiedId, copyPrompt, copyText } = useCopy();
   const repoUrl = siteData?.repository || fallbackRepoUrl;
   const t = copy[language];
-  const apimartPrice = Number(apimartPriceMeta?.prices?.['1k']) || APIMART_DEFAULT_PRICE_USD;
 
   useEffect(() => {
     let cancelled = false;
@@ -3634,48 +3810,9 @@ function App() {
   }, []);
 
   useEffect(() => {
-    let cancelled = false;
-    fetch('/api/apimart/pricing', { headers: { Accept: 'application/json' } })
-      .then(async (response) => {
-        const payload = await response.json().catch(() => ({}));
-        if (!response.ok || !payload?.ok) throw new Error('APIMART_PRICING_FAILED');
-        return payload;
-      })
-      .then((payload) => {
-        if (!cancelled) setApimartPriceMeta(payload);
-      })
-      .catch(() => {
-        if (!cancelled) {
-          setApimartPriceMeta({
-            prices: { '1k': APIMART_DEFAULT_PRICE_USD },
-            stale: true,
-            snapshotDate: APIMART_PRICE_SNAPSHOT_DATE
-          });
-        }
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  useEffect(() => {
     localStorage.setItem('language', language);
     document.documentElement.lang = language === 'zh' ? 'zh-CN' : 'en';
   }, [language]);
-
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const authError = params.get('auth_error');
-    if (!authError) return;
-
-    setAuthErrorCode(authError);
-    setAuthOpen(true);
-    params.delete('auth_error');
-    params.delete('auth_provider');
-    const nextSearch = params.toString();
-    const nextUrl = `${window.location.pathname}${nextSearch ? `?${nextSearch}` : ''}${window.location.hash}`;
-    window.history.replaceState({}, '', nextUrl);
-  }, []);
 
   useEffect(() => {
     if (!isSupabaseConfigured || !supabase) return undefined;
@@ -3801,7 +3938,6 @@ function App() {
   }
 
   function openAuth() {
-    setAuthErrorCode('');
     setAuthOpen(true);
   }
 
@@ -4035,11 +4171,7 @@ function App() {
         <AuthModal
           open={authOpen}
           language={language}
-          initialErrorCode={authErrorCode}
-          onClose={() => {
-            setAuthOpen(false);
-            setAuthErrorCode('');
-          }}
+          onClose={() => setAuthOpen(false)}
         />
         <AdminPanel
           open={adminOpen}
@@ -4078,16 +4210,15 @@ function App() {
             <a href="#templates">{t.navTemplates}</a>
             <a href="#agent-skill">{t.navSkill}</a>
             <CommunityNavItem language={language} />
-            <a
+            <button
+              type="button"
               className="sponsorNavLink"
-              href={sponsorUrl}
-              target="_blank"
-              rel="noreferrer"
               aria-label={t.sponsorProjectLabel}
+              onClick={() => setApiKeyOpen(true)}
             >
-              <Heart size={16} />
+              <KeyRound size={16} />
               {t.navSponsor}
-            </a>
+            </button>
             <a href={repoUrl} target="_blank" rel="noreferrer">
               GitHub
             </a>
@@ -4118,6 +4249,7 @@ function App() {
         totalCases={siteData.totalCases}
         categoryCount={siteData.categories.length}
         onOpenCase={(item) => setPreview({ type: 'case', item })}
+        onApiSettings={() => setApiKeyOpen(true)}
       />
 
       <section className="hotStrip">
@@ -4233,9 +4365,7 @@ function App() {
         copiedId={copiedId}
         session={session}
         profile={profile}
-        apimartKey={apimartKey}
-        apimartPrice={apimartPrice}
-        apimartPriceMeta={apimartPriceMeta}
+        personalProvider={personalProvider}
         favorite={preview?.type === 'case' ? favoriteCaseIds.has(preview.item.id) : false}
         favoriteBusy={preview?.type === 'case' && favoriteBusyId === preview.item.id}
         onClose={closePreview}
@@ -4252,11 +4382,7 @@ function App() {
       <AuthModal
         open={authOpen}
         language={language}
-        initialErrorCode={authErrorCode}
-        onClose={() => {
-          setAuthOpen(false);
-          setAuthErrorCode('');
-        }}
+        onClose={() => setAuthOpen(false)}
       />
       <AccountPanel
         open={accountOpen}
@@ -4266,8 +4392,7 @@ function App() {
         casesById={casesById}
         favoriteRows={favoriteRows}
         initialSection={accountInitialSection}
-        apimartKey={apimartKey}
-        apimartPrice={apimartPrice}
+        personalProvider={personalProvider}
         onClose={handleCloseAccount}
         onProfileChange={handleProfileChange}
         onOpenCase={handleOpenCaseFromAccount}
@@ -4301,12 +4426,10 @@ function App() {
       <ApiKeyModal
         open={apiKeyOpen}
         language={language}
-        apiKey={apimartKey}
-        price={apimartPrice}
-        priceMeta={apimartPriceMeta}
+        config={personalProvider}
         onClose={() => setApiKeyOpen(false)}
-        onSaved={setApimartKey}
-        onCleared={() => setApimartKey('')}
+        onSaved={setPersonalProvider}
+        onCleared={() => setPersonalProvider(DEFAULT_PERSONAL_PROVIDER)}
       />
     </main>
   );

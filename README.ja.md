@@ -322,7 +322,9 @@ Skill のソースは [`agents/skills/gpt-image-2-style-library`](agents/skills/
 
 ## 🔐 Web サイト認証と生成
 
-ビジュアルサイトでは、ブラウザ内だけに保存する個人 APIMart API Key を使って直接生成できます。個人 Key がない場合は、ログイン、Supabase、プラットフォームクレジット、サーバー側 APIMart Key を利用します。
+サイト認証には Supabase のメールアドレス＋パスワードを使用し、新規登録確認とパスワード復旧には6桁コードを使用します。アカウント、お気に入り、メンバーシップ、クレジットは同じ Supabase ユーザー ID に関連付けられます。詳しい設定とメールテンプレートは[メール認証と Resend の設定](docs/email-auth-setup.md)を参照してください。
+
+ビジュアルサイトでは、ブラウザ内だけに保存する OpenAI 互換 API 設定を使って直接生成できます。
 
 Vercel で必要な環境変数：
 
@@ -350,9 +352,9 @@ GOOGLE_ANALYTICS_REFRESH_TOKEN=
 - [`supabase/migrations/20260512143000_pricing_admin_metrics.sql`](supabase/migrations/20260512143000_pricing_admin_metrics.sql) を適用し、`$5 / 300 credits` のカタログを更新して管理ダッシュボード指標を追加します。
 - [`supabase/migrations/20260515090000_case_favorites.sql`](supabase/migrations/20260515090000_case_favorites.sql) を適用し、ユーザーごとのケースお気に入り機能を追加します。
 - [`supabase/migrations/20260828090000_apimart_generation_tasks.sql`](supabase/migrations/20260828090000_apimart_generation_tasks.sql) を適用し、APIMart タスク ID、実際の USD コスト、有効期限付き結果 URL、プロバイダー索引を追加します。
-- Supabase Auth の Redirect URLs に `https://gpt-image2.canghe.ai` と、`http://127.0.0.1:5173` などのローカル開発 URL を追加します。
-- Supabase Dashboard に Google OAuth 認証情報を追加したうえで Google Provider を有効化します。
-- Google ログインのみに制限したい場合は、Supabase Auth settings で Email Provider を無効化します。
+- Supabase で Email + Password とメール確認を有効にし、Google など未使用のソーシャル Provider を無効にします。
+- Production URL を Site URL に設定し、Production URL と `http://127.0.0.1:5173/**` などを Redirect URLs に追加します。
+- 登録確認とパスワード復旧テンプレートに `{{ .Token }}` を使用し、検証済みの Production ドメインで Resend Custom SMTP を設定します。
 - `SUPABASE_SERVICE_ROLE_KEY` は Vercel Environment Variables などのサーバーサイド環境にのみ保存してください。
 - Stripe Checkout の Webhook URL に `https://gpt-image2.canghe.ai/api/billing/webhook` を設定します。
 - Stripe Webhook で `checkout.session.completed`、`invoice.payment_succeeded`、`customer.subscription.updated`、`customer.subscription.deleted` を購読します。

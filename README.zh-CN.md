@@ -38,7 +38,7 @@
 
 ## 🌐 可视化网站
 
-访问 [gpt-image2.canghe.ai](https://gpt-image2.canghe.ai/) 可以用产品化方式浏览案例：查看大图、复制完整 Prompt、按风格或场景筛选、配置个人 APIMart Key 或登录后测试生成，并快速跳回 GitHub 源案例。
+访问 [gpt-image2.canghe.ai](https://gpt-image2.canghe.ai/) 可以用产品化方式浏览案例：查看大图、复制完整 Prompt、按风格或场景筛选、配置个人 OpenAI 兼容图片 API，并快速跳回 GitHub 源案例。
 
 <p align="center">
   <a href="https://gpt-image2.canghe.ai/">
@@ -323,7 +323,9 @@ skill 源码位于 [`agents/skills/gpt-image-2-style-library`](agents/skills/gpt
 
 ## 🔐 网站登录与生成测试
 
-可视化网站支持使用仅保存在当前浏览器的个人 APIMart Key 直接生成。没有配置个人 Key 时，登录用户继续使用 Supabase Auth、平台积分和服务端 APIMart Key。
+网站使用 Supabase 邮箱密码认证，支持邮箱注册六位验证码、登录和六位验证码找回密码。登录后的账户、收藏、会员和积分继续关联同一个 Supabase 用户 ID。完整配置步骤和邮件模板见[邮箱认证与 Resend 配置](docs/email-auth-setup.md)。
+
+可视化网站使用仅保存在当前浏览器的 OpenAI 兼容 API 配置直接生成。可自定义厂商名称、Base URL、图片模型和 API Key。兼容接口需提供 `GET /models` 和 `POST /images/generations`，并允许浏览器跨域访问；生成响应支持图片 URL 或 `b64_json`。未配置接口时，生成按钮会直接打开 API 配置窗口。
 
 Vercel 需要配置这些环境变量：
 
@@ -353,9 +355,9 @@ GOOGLE_ANALYTICS_REFRESH_TOKEN=
 - 将 [`supabase/migrations/20260512143000_pricing_admin_metrics.sql`](supabase/migrations/20260512143000_pricing_admin_metrics.sql) 应用到 Supabase 项目，更新 `$5 / 300 credits` 价格体系，并添加管理员数据看板指标。
 - 将 [`supabase/migrations/20260515090000_case_favorites.sql`](supabase/migrations/20260515090000_case_favorites.sql) 应用到 Supabase 项目，添加用户案例收藏表。
 - 将 [`supabase/migrations/20260828090000_apimart_generation_tasks.sql`](supabase/migrations/20260828090000_apimart_generation_tasks.sql) 应用到 Supabase 项目，保存 APIMart 任务 ID、实际美元成本、限时结果地址和服务商索引。
-- 在 Supabase Auth Redirect URLs 里加入 `https://gpt-image2.canghe.ai`，以及 `http://127.0.0.1:5173` 等本地开发地址。
-- 在 Supabase Dashboard 填入 Google OAuth 凭据并启用 Google Provider。
-- 如需强制只允许 Google 登录，可以在 Supabase Auth settings 里关闭 Email Provider。
+- 在 Supabase 中启用 Email + Password 和邮箱确认，关闭未使用的 Google 等社交登录 Provider。
+- 将生产地址设为 Supabase Site URL，并在 Redirect URLs 加入生产地址及 `http://127.0.0.1:5173/**` 等本地开发地址。
+- 将注册确认和密码恢复邮件模板中的验证码写成 `{{ .Token }}`，生产环境使用已验证域名的 Resend Custom SMTP。
 - `SUPABASE_SERVICE_ROLE_KEY` 只放在 Vercel Environment Variables 这类服务端环境里。
 - 配置 Stripe Checkout Webhook：`https://gpt-image2.canghe.ai/api/billing/webhook`。
 - Stripe Webhook 订阅 `checkout.session.completed`、`invoice.payment_succeeded`、`customer.subscription.updated`、`customer.subscription.deleted`。
