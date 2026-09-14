@@ -1,0 +1,8 @@
+services:
+  gateway:
+    ports: !override
+      - "127.0.0.1:${SUPABASE_LOOPBACK_PORT:-18000}:80"
+    volumes: !override
+      - ./Caddyfile.internal:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config

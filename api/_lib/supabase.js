@@ -3,7 +3,10 @@ import { createClient } from '@supabase/supabase-js';
 let adminClient;
 
 export function getSupabaseConfig() {
-  const url = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL;
+  // Server-side traffic should prefer the private Docker/network URL. The
+  // VITE_ value is embedded in the browser bundle and can point at a public
+  // hostname instead.
+  const url = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
   return {
     url,

@@ -6,15 +6,14 @@ import {
   isValidOtp,
   mapAuthError,
   normalizeEmail,
+  normalizeInvitationTokenInput,
   normalizeOtp,
   passwordValidationCode,
+  registrationEmailMatches,
   requestPasswordRecovery,
-  resendSignupCode,
   signInWithEmail,
-  signUpWithEmail,
   updateRecoveredPassword,
-  verifyRecoveryCode,
-  verifySignupCode
+  verifyRecoveryCode
 } from './emailAuthClient.js';
 
 function authMock(method, result = { data: {}, error: null }) {
@@ -38,10 +37,11 @@ test('normalizes and validates email addresses', () => {
   assert.equal(isValidEmail('invalid-address'), false);
 });
 
-test('enforces eight-character matching passwords', () => {
-  assert.equal(passwordValidationCode('1234567', '1234567'), AUTH_ERROR_CODES.WEAK_PASSWORD);
-  assert.equal(passwordValidationCode('12345678', '87654321'), AUTH_ERROR_CODES.PASSWORD_MISMATCH);
-  assert.equal(passwordValidationCode('12345678', '12345678'), '');
+test('enforces twelve-character matching passwords', () => {
+  assert.equal(passwordValidationCode('12345678901', '12345678901'), AUTH_ERROR_CODES.WEAK_PASSWORD);
+  assert.equal(passwordValidationCode('123456789012', '210987654321'), AUTH_ERROR_CODES.PASSWORD_MISMATCH);
+  assert.equal(passwordValidationCode('123456789012', '123456789012'), '');
+  assert.equal(passwordValidationCode('x'.repeat(129), 'x'.repeat(129)), AUTH_ERROR_CODES.WEAK_PASSWORD);
 });
 
 test('normalizes and validates six-digit OTP codes', () => {
@@ -58,24 +58,25 @@ test('maps common Supabase errors without exposing raw messages', () => {
   assert.equal(mapAuthError({ message: 'Unexpected server detail' }), AUTH_ERROR_CODES.UNKNOWN);
 });
 
-test('login and signup use email password APIs', async () => {
+test('login uses the email password API', async () => {
   const login = authMock('signInWithPassword');
   await signInWithEmail(login.client, { email: ' Test@Example.com ', password: 'password1' });
   assert.deepEqual(login.calls[0][0], { email: 'test@example.com', password: 'password1' });
-
-  const signup = authMock('signUp');
-  await signUpWithEmail(signup.client, { email: ' Test@Example.com ', password: 'password1' });
-  assert.deepEqual(signup.calls[0][0], { email: 'test@example.com', password: 'password1' });
 });
 
-test('signup verification and resend use signup OTP type', async () => {
-  const verification = authMock('verifyOtp');
-  await verifySignupCode(verification.client, { email: 'a@example.com', token: '12 34 56' });
-  assert.deepEqual(verification.calls[0][0], { email: 'a@example.com', token: '123456', type: 'signup' });
+test('accepts either a raw invitation token or a complete invitation link', () => {
+  assert.equal(normalizeInvitationTokenInput('  abc_123-xyz  '), 'abc_123-xyz');
+  assert.equal(
+    normalizeInvitationTokenInput('https://example.com/?invite=abc_123-xyz&utm_source=email'),
+    'abc_123-xyz'
+  );
+  assert.equal(normalizeInvitationTokenInput('https://example.com/without-token'), '');
+});
 
-  const resend = authMock('resend');
-  await resendSignupCode(resend.client, { email: 'a@example.com' });
-  assert.deepEqual(resend.calls[0][0], { email: 'a@example.com', type: 'signup' });
+test('registration codes stay valid only while the normalized email is unchanged', () => {
+  assert.equal(registrationEmailMatches('User@example.com', ' user@example.com '), true);
+  assert.equal(registrationEmailMatches('first@example.com', 'second@example.com'), false);
+  assert.equal(registrationEmailMatches('', 'user@example.com'), false);
 });
 
 test('recovery uses recovery OTP and updates the current recovery session', async () => {

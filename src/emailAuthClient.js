@@ -1,5 +1,6 @@
 export const AUTH_RESEND_COOLDOWN_SECONDS = 60;
-export const AUTH_MIN_PASSWORD_LENGTH = 8;
+export const AUTH_MIN_PASSWORD_LENGTH = 12;
+export const AUTH_MAX_PASSWORD_LENGTH = 128;
 
 export const AUTH_ERROR_CODES = Object.freeze({
   NOT_CONFIGURED: 'AUTH_NOT_CONFIGURED',
@@ -24,7 +25,8 @@ export function isValidEmail(value) {
 }
 
 export function passwordValidationCode(password, confirmation) {
-  if (String(password || '').length < AUTH_MIN_PASSWORD_LENGTH) {
+  const length = String(password || '').length;
+  if (length < AUTH_MIN_PASSWORD_LENGTH || length > AUTH_MAX_PASSWORD_LENGTH) {
     return AUTH_ERROR_CODES.WEAK_PASSWORD;
   }
   if (confirmation !== undefined && password !== confirmation) {
@@ -35,6 +37,21 @@ export function passwordValidationCode(password, confirmation) {
 
 export function normalizeOtp(value) {
   return String(value || '').replace(/\D/g, '').slice(0, 6);
+}
+
+export function normalizeInvitationTokenInput(value) {
+  const text = String(value || '').trim();
+  if (!text) return '';
+  try {
+    const url = new URL(text);
+    return String(url.searchParams.get('invite') || '').trim();
+  } catch {
+    return text;
+  }
+}
+
+export function registrationEmailMatches(sentEmail, currentEmail) {
+  return Boolean(sentEmail) && normalizeEmail(sentEmail) === normalizeEmail(currentEmail);
 }
 
 export function isValidOtp(value) {
@@ -71,18 +88,6 @@ function authApi(client) {
 
 export function signInWithEmail(client, { email, password }) {
   return authApi(client).signInWithPassword({ email: normalizeEmail(email), password });
-}
-
-export function signUpWithEmail(client, { email, password }) {
-  return authApi(client).signUp({ email: normalizeEmail(email), password });
-}
-
-export function verifySignupCode(client, { email, token }) {
-  return authApi(client).verifyOtp({ email: normalizeEmail(email), token: normalizeOtp(token), type: 'signup' });
-}
-
-export function resendSignupCode(client, { email }) {
-  return authApi(client).resend({ email: normalizeEmail(email), type: 'signup' });
 }
 
 function isNonEnumeratingRecoveryError(error) {

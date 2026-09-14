@@ -1,0 +1,1 @@
+17 3 * * * root BACKUP_DIR=/var/backups/awesome-gpt-image /opt/awesome-gpt-image/deploy/backup-postgres.sh >> /var/log/awesome-gpt-image-backup.log 2>&1

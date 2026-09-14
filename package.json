@@ -12,11 +12,15 @@
     "publish:skill:npm": "npm publish ./agents/skills/gpt-image-2-style-library --access public",
     "predev": "npm run generate:site-data && npm run generate:style-skill",
     "dev": "vite",
+    "dev:api": "node --watch --env-file-if-exists=.env.local server/index.js",
+    "dev:full": "concurrently -k -n web,api \"npm run dev\" \"npm run dev:api\"",
     "dev:alipay-sandbox": "node scripts/alipay-webpay-sandbox-server.mjs",
     "prebuild": "npm run generate:site-data && npm run generate:style-skill",
     "build": "vite build",
     "preview": "vite preview",
-    "test": "node --test api/_lib/*.test.js src/*.test.js",
+    "start": "node --env-file-if-exists=.env server/index.js",
+    "auth:bootstrap-code": "node --env-file-if-exists=.env.local scripts/bootstrap-invite-code.mjs",
+    "test": "node --test api/_lib/*.test.js server/*.test.js src/*.test.js",
     "test:apimart": "node --test shared/apimart.test.js src/apimartClient.test.js api/_lib/apimart.test.js api/_lib/generation.test.js"
   },
   "dependencies": {
@@ -24,11 +28,16 @@
     "@supabase/supabase-js": "^2.105.4",
     "@vitejs/plugin-react": "^5.1.1",
     "alipay-sdk": "^4.14.0",
+    "express": "^5.2.1",
     "google-auth-library": "^10.6.2",
     "lucide-react": "^0.561.0",
+    "nodemailer": "^10.0.9",
     "react": "^19.2.1",
     "react-dom": "^19.2.1",
     "stripe": "^22.1.1",
     "vite": "^7.2.7"
+  },
+  "devDependencies": {
+    "concurrently": "^10.0.5"
   }
 }

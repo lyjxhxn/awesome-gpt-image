@@ -1,0 +1,9 @@
+.git
+.env
+.env.*
+key
+node_modules
+dist
+npm-debug.log*
+deploy/core/.env
+deploy/app/.env

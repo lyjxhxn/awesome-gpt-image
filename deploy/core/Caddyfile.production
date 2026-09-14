@@ -1,0 +1,19 @@
+{$APP_PUBLIC_HOST} {
+  encode zstd gzip
+  reverse_proxy host.docker.internal:8787
+}
+
+{$SUPABASE_PUBLIC_HOST} {
+  encode zstd gzip
+
+  handle_path /auth/v1/* {
+    reverse_proxy auth:9999
+  }
+
+  handle_path /rest/v1/* {
+    reverse_proxy rest:3000
+  }
+
+  respond /healthz 200
+  respond 404
+}

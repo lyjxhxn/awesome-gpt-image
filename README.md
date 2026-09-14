@@ -325,17 +325,24 @@ The skill source lives at [`agents/skills/gpt-image-2-style-library`](agents/ski
 
 ## 🔐 Website Auth & Generation
 
-The site uses Supabase email/password authentication with six-digit codes for signup confirmation and password recovery. Accounts, favorites, memberships, and credits remain associated with the same Supabase user ID. See [Email authentication and Resend setup](docs/email-auth-setup.md) for the full setup and email templates.
+The site uses a server-controlled Supabase registration flow: verify an email code, then provide a username, optional required invitation code, and password. Admins create invitation codes with usage limits and can turn the invitation requirement off. Native public GoTrue signup remains disabled.
 
 The visual site generates directly through an OpenAI-compatible API configuration stored only in the current browser. Provide a provider name, Base URL, image model, and API key. Compatible endpoints must expose `GET /models` and `POST /images/generations`, allow browser CORS, and return either an image URL or `b64_json`. Without a configured API, the generation button opens the API settings dialog.
 
-Required Vercel environment variables:
+Required authentication and server environment variables include:
 
 ```bash
 VITE_SUPABASE_URL=
 VITE_SUPABASE_ANON_KEY=
+SUPABASE_URL=
 SUPABASE_SERVICE_ROLE_KEY=
 SUPER_ADMIN_EMAILS=2689458656@qq.com,canghe0818@gmail.com
+AUTH_REGISTRATION_HASH_SECRET=
+SMTP_HOST=
+SMTP_PORT=465
+SMTP_USER=
+SMTP_PASS=
+SMTP_FROM=
 APIMART_API_KEY=
 APP_URL=https://gpt-image2.canghe.ai
 STRIPE_SECRET_KEY=
@@ -350,6 +357,7 @@ GOOGLE_ANALYTICS_REFRESH_TOKEN=
 Setup checklist:
 
 - Apply [`supabase/migrations/202605090001_user_credits.sql`](supabase/migrations/202605090001_user_credits.sql) to the Supabase project.
+- Apply [`supabase/migrations/20260914090000_registration_auth.sql`](supabase/migrations/20260914090000_registration_auth.sql) and disable native public GoTrue signup.
 - Apply [`supabase/migrations/20260509090000_membership_billing.sql`](supabase/migrations/20260509090000_membership_billing.sql) to add membership plans, credit packs, Stripe order records, and credit adjustment RPCs.
 - Apply [`supabase/migrations/20260721090000_alipay_webpay.sql`](supabase/migrations/20260721090000_alipay_webpay.sql) before enabling Alipay website payments, then configure each credit pack's reviewed CNY price. See [Alipay website payment setup](docs/alipay-web-payment.md).
 - Apply [`supabase/migrations/20260722090000_paid_community.sql`](supabase/migrations/20260722090000_paid_community.sql) before enabling the paid community. Keep `COMMUNITY_PAYMENT_ENABLED=false` until the protected QR, Alipay onboarding, and production payment/refund checks are complete. See the [paid community runbook](docs/paid-community.md).

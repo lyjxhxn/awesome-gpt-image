@@ -2518,6 +2518,63 @@ button {
   font-size: 16px;
 }
 
+.authEmailRow {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+}
+
+.authInlineButton {
+  min-width: 132px;
+  min-height: 46px;
+  border: 1px solid rgba(120, 255, 185, 0.36);
+  border-radius: 8px;
+  padding: 0 14px;
+  background: rgba(103, 232, 249, 0.12);
+  color: #baf6ff;
+  font-weight: 900;
+}
+
+.authInlineButton:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.adminInviteForm {
+  display: flex;
+  align-items: end;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.adminInviteSetting {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.adminInviteForm label {
+  display: grid;
+  gap: 7px;
+  flex: 1;
+}
+
+.adminInviteForm input {
+  width: 100%;
+  min-height: 42px;
+  padding: 0 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text);
+}
+
 .adminPanelCard h4 {
   font-size: 14px;
 }
@@ -3765,6 +3822,14 @@ button {
     grid-template-columns: 1fr;
   }
 
+  .authEmailRow {
+    grid-template-columns: 1fr;
+  }
+
+  .authInlineButton {
+    width: 100%;
+  }
+
   .apiKeyHeading h2 {
     margin-top: 14px;
   }
@@ -3784,6 +3849,11 @@ button {
   }
 
   .adminHeader {
+    flex-direction: column;
+  }
+
+  .adminInviteForm {
+    align-items: stretch;
     flex-direction: column;
   }
 

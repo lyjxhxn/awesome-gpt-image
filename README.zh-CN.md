@@ -323,17 +323,24 @@ skill 源码位于 [`agents/skills/gpt-image-2-style-library`](agents/skills/gpt
 
 ## 🔐 网站登录与生成测试
 
-网站使用 Supabase 邮箱密码认证，支持邮箱注册六位验证码、登录和六位验证码找回密码。登录后的账户、收藏、会员和积分继续关联同一个 Supabase 用户 ID。完整配置步骤和邮件模板见[邮箱认证与 Resend 配置](docs/email-auth-setup.md)。
+网站使用“邮箱验证码 + 可选邀请码 + 密码”的 Supabase 认证流程。用户先验证邮箱，再填写用户名、邀请码和密码；管理员可创建带使用次数上限的邀请码，也可关闭邀请码要求。找回密码继续使用六位验证码。
 
 可视化网站使用仅保存在当前浏览器的 OpenAI 兼容 API 配置直接生成。可自定义厂商名称、Base URL、图片模型和 API Key。兼容接口需提供 `GET /models` 和 `POST /images/generations`，并允许浏览器跨域访问；生成响应支持图片 URL 或 `b64_json`。未配置接口时，生成按钮会直接打开 API 配置窗口。
 
-Vercel 需要配置这些环境变量：
+认证和服务端至少需要配置这些环境变量：
 
 ```bash
 VITE_SUPABASE_URL=
 VITE_SUPABASE_ANON_KEY=
+SUPABASE_URL=
 SUPABASE_SERVICE_ROLE_KEY=
 SUPER_ADMIN_EMAILS=2689458656@qq.com,canghe0818@gmail.com
+AUTH_REGISTRATION_HASH_SECRET=
+SMTP_HOST=
+SMTP_PORT=465
+SMTP_USER=
+SMTP_PASS=
+SMTP_FROM=
 APIMART_API_KEY=
 APP_URL=https://gpt-image2.canghe.ai
 STRIPE_SECRET_KEY=
@@ -348,6 +355,7 @@ GOOGLE_ANALYTICS_REFRESH_TOKEN=
 配置清单：
 
 - 将 [`supabase/migrations/202605090001_user_credits.sql`](supabase/migrations/202605090001_user_credits.sql) 应用到 Supabase 项目。
+- 应用 [`supabase/migrations/20260914090000_registration_auth.sql`](supabase/migrations/20260914090000_registration_auth.sql)，并关闭 GoTrue 原生公开注册；注册由项目服务端流程完成。
 - 将 [`supabase/migrations/20260509090000_membership_billing.sql`](supabase/migrations/20260509090000_membership_billing.sql) 应用到 Supabase 项目，添加会员套餐、积分包、Stripe 订单记录和积分调整 RPC。
 - 启用支付宝网站支付前，应用 [`supabase/migrations/20260721090000_alipay_webpay.sql`](supabase/migrations/20260721090000_alipay_webpay.sql)，并为需要销售的积分包配置经业务确认的人民币价格。详见[支付宝网站支付接入说明](docs/alipay-web-payment.md)。
 - 启用付费交流群前，应用 [`supabase/migrations/20260722090000_paid_community.sql`](supabase/migrations/20260722090000_paid_community.sql)。在新群码、支付宝签约和生产付款退款验收完成前，保持 `COMMUNITY_PAYMENT_ENABLED=false`。详见[付费交流群上线手册](docs/paid-community.md)。

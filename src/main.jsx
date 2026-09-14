@@ -43,15 +43,14 @@ import {
   isValidOtp,
   mapAuthError,
   normalizeEmail,
+  normalizeInvitationTokenInput,
   normalizeOtp,
   passwordValidationCode,
+  registrationEmailMatches,
   requestPasswordRecovery,
-  resendSignupCode,
   signInWithEmail,
-  signUpWithEmail,
   updateRecoveredPassword,
-  verifyRecoveryCode,
-  verifySignupCode
+  verifyRecoveryCode
 } from './emailAuthClient';
 import {
   clearPendingGeneration,
@@ -237,10 +236,35 @@ const copy = {
     signIn: 'Sign in',
     signInTitle: 'Sign in to your account',
     signInSubtitle: 'Access your favorites, membership, credits, and image generation history.',
-    registerTitle: 'Create an account',
-    registerSubtitle: 'Register with your email address. We will send you a six-digit verification code.',
-    signupOtpTitle: 'Verify your email',
-    signupOtpSubtitle: (email) => `Enter the six-digit code sent to ${email}.`,
+    invitationOnly: 'New accounts are invitation-only.',
+    registrationOpen: 'Register after verifying your email.',
+    registerWithInvite: 'Register with invitation',
+    registerAccount: 'Register account',
+    registrationEmailTitle: 'Verify your email',
+    registrationEmailSubtitle: 'Enter your email address to receive a six-digit registration code.',
+    registrationCodeTitle: 'Enter registration code',
+    registrationCodeSubtitle: (email) => `Enter the six-digit code sent to ${email}.`,
+    registrationDetailsTitle: 'Complete registration',
+    registrationDetailsSubtitle: 'Enter your username, password, email verification code, and invitation code.',
+    sendRegistrationCode: 'Send verification code',
+    verifyRegistrationCode: 'Verify email',
+    completeRegistration: 'Create account',
+    registrationCodeSent: 'A six-digit registration code has been sent. Check your inbox and spam folder.',
+    registrationCodeInvalid: 'The registration code is invalid or expired.',
+    registrationCodeRequired: 'Send and enter the email verification code before registering.',
+    registrationEmailChanged: 'The email address changed. Send a new verification code.',
+    registrationSessionInvalid: 'Email verification has expired. Verify your email again.',
+    inviteCodeInvalid: 'The invitation code is invalid, revoked, or has reached its usage limit.',
+    inviteTitle: 'Accept your invitation',
+    inviteSubtitle: 'Choose a password to finish creating the invited account.',
+    inviteCodeLabel: 'Invitation code',
+    inviteCodePlaceholder: 'For example: nasmy',
+    inviteDisplayNameLabel: 'Username (display name)',
+    inviteDisplayNamePlaceholder: 'Enter the name shown in your account',
+    inviteDisplayNameRule: 'Use 2 to 30 characters. Chinese characters are supported.',
+    inviteDisplayNameInvalid: 'Username must contain 2 to 30 valid characters.',
+    acceptInvitation: 'Create invited account',
+    invitationInvalid: 'This invitation is invalid, expired, already used, or temporarily unavailable.',
     forgotTitle: 'Recover your account',
     forgotSubtitle: 'Enter your email address to receive a six-digit recovery code.',
     recoveryOtpTitle: 'Enter recovery code',
@@ -257,20 +281,15 @@ const copy = {
     newPasswordPlaceholder: 'Enter a new password',
     verificationCodeLabel: 'Verification code',
     verificationCodePlaceholder: '6-digit code',
-    passwordRule: 'Use at least 8 characters.',
-    createAccount: 'Create account',
-    verifyEmail: 'Verify and continue',
+    passwordRule: 'Use 12 to 128 characters.',
     forgotPassword: 'Forgot password?',
     recoverAccount: 'Send recovery code',
     verifyRecovery: 'Verify code',
     updatePassword: 'Set new password',
-    noAccount: 'New here?',
-    haveAccount: 'Already have an account?',
     backToSignIn: 'Back to sign in',
     changeEmail: 'Use a different email',
     resendCode: 'Resend code',
     resendCountdown: (seconds) => `Resend in ${seconds}s`,
-    signupCodeSent: 'Verification code sent. Check your inbox and spam folder.',
     recoveryCodeSent: 'If this email is registered, a recovery code has been sent. Check your inbox and spam folder.',
     passwordUpdated: 'Password updated successfully.',
     authRateLimited: 'Too many login attempts. Please wait a bit, then try again.',
@@ -278,7 +297,7 @@ const copy = {
     authInvalidCredentials: 'Incorrect email or password.',
     authEmailNotConfirmed: 'Verify your email before signing in.',
     authInvalidEmail: 'Enter a valid email address.',
-    authWeakPassword: 'Password must contain at least 8 characters.',
+    authWeakPassword: 'Password must contain 12 to 128 characters.',
     authPasswordMismatch: 'The two passwords do not match.',
     authInvalidOtp: 'The verification code is invalid or has expired.',
     authUserExists: 'This email is already registered. Sign in or recover your password.',
@@ -336,6 +355,20 @@ const copy = {
     creditsAvailable: (count) => `${count} credit${count === 1 ? '' : 's'} available`,
     adminTitle: 'User admin',
     adminSubtitle: 'Traffic, users, memberships, credits, and generation activity in one dashboard.',
+    invitations: 'Invitation codes',
+    inviteCodeValue: 'Invitation code',
+    inviteMaxUses: 'Maximum uses',
+    inviteUnlimited: 'Blank means unlimited',
+    sendInvitation: 'Create code',
+    invitationSent: 'Invitation code created.',
+    invitationRevoked: 'Invitation code revoked.',
+    noInvitations: 'No invitation codes yet.',
+    revokeInvitation: 'Revoke',
+    invitationStatus: 'Status',
+    invitationUsage: 'Usage',
+    inviteRequiredSetting: 'Require invitation code for registration',
+    inviteRequiredOn: 'Required',
+    inviteRequiredOff: 'Not required',
     adminMetrics: 'Dashboard',
     trafficMetrics: 'Traffic',
     businessMetrics: 'Business',
@@ -557,10 +590,35 @@ const copy = {
     signIn: '登录',
     signInTitle: '登录你的账户',
     signInSubtitle: '登录后使用收藏、会员、积分和生图记录。',
-    registerTitle: '创建账户',
-    registerSubtitle: '使用邮箱注册，我们会发送一封包含六位验证码的邮件。',
-    signupOtpTitle: '验证邮箱',
-    signupOtpSubtitle: (email) => `请输入发送到 ${email} 的六位验证码。`,
+    invitationOnly: '新账户仅限管理员邀请注册。',
+    registrationOpen: '验证邮箱后即可注册账户。',
+    registerWithInvite: '使用邀请码注册',
+    registerAccount: '注册账户',
+    registrationEmailTitle: '验证注册邮箱',
+    registrationEmailSubtitle: '填写你的邮箱，我们会发送六位注册验证码。',
+    registrationCodeTitle: '输入注册验证码',
+    registrationCodeSubtitle: (email) => `请输入发送到 ${email} 的六位验证码。`,
+    registrationDetailsTitle: '完成注册',
+    registrationDetailsSubtitle: '填写用户名、密码、邮箱验证码和邀请码以创建账户。',
+    sendRegistrationCode: '发送验证码',
+    verifyRegistrationCode: '验证邮箱',
+    completeRegistration: '创建账户',
+    registrationCodeSent: '六位注册验证码已发送，请检查收件箱和垃圾邮件。',
+    registrationCodeInvalid: '注册验证码错误或已经过期。',
+    registrationCodeRequired: '请先发送并填写邮箱验证码。',
+    registrationEmailChanged: '邮箱已修改，请重新发送验证码。',
+    registrationSessionInvalid: '邮箱验证已经过期，请重新验证邮箱。',
+    inviteCodeInvalid: '邀请码错误、已撤销或已达到使用次数上限。',
+    inviteTitle: '接受账户邀请',
+    inviteSubtitle: '设置密码以完成受邀账户创建。',
+    inviteCodeLabel: '邀请码',
+    inviteCodePlaceholder: '例如：nasmy',
+    inviteDisplayNameLabel: '用户名（显示名称）',
+    inviteDisplayNamePlaceholder: '请输入账户中显示的名称',
+    inviteDisplayNameRule: '请输入 2–30 个字符，支持中文。',
+    inviteDisplayNameInvalid: '用户名需要包含 2–30 个有效字符。',
+    acceptInvitation: '创建受邀账户',
+    invitationInvalid: '邀请无效、已过期、已使用或暂时不可用。',
     forgotTitle: '找回账户',
     forgotSubtitle: '输入注册邮箱，我们会发送一封包含六位验证码的邮件。',
     recoveryOtpTitle: '输入找回验证码',
@@ -577,20 +635,15 @@ const copy = {
     newPasswordPlaceholder: '请输入新密码',
     verificationCodeLabel: '验证码',
     verificationCodePlaceholder: '六位验证码',
-    passwordRule: '密码至少需要 8 位。',
-    createAccount: '注册账户',
-    verifyEmail: '验证并继续',
+    passwordRule: '密码长度需要为 12–128 位。',
     forgotPassword: '忘记密码？',
     recoverAccount: '发送找回验证码',
     verifyRecovery: '验证验证码',
     updatePassword: '设置新密码',
-    noAccount: '还没有账户？',
-    haveAccount: '已经有账户？',
     backToSignIn: '返回登录',
     changeEmail: '更换邮箱',
     resendCode: '重新发送验证码',
     resendCountdown: (seconds) => `${seconds} 秒后可重新发送`,
-    signupCodeSent: '验证码已发送，请检查收件箱和垃圾邮件。',
     recoveryCodeSent: '如果该邮箱已注册，找回验证码已发送，请检查收件箱和垃圾邮件。',
     passwordUpdated: '密码设置成功。',
     authRateLimited: '登录尝试过于频繁，请稍后再试。',
@@ -598,7 +651,7 @@ const copy = {
     authInvalidCredentials: '邮箱或密码不正确。',
     authEmailNotConfirmed: '请先完成邮箱验证再登录。',
     authInvalidEmail: '请输入有效的邮箱地址。',
-    authWeakPassword: '密码至少需要 8 位。',
+    authWeakPassword: '密码长度需要为 12–128 位。',
     authPasswordMismatch: '两次输入的密码不一致。',
     authInvalidOtp: '验证码错误或已经过期。',
     authUserExists: '该邮箱已经注册，请直接登录或找回密码。',
@@ -656,6 +709,20 @@ const copy = {
     creditsAvailable: (count) => `可用积分 ${count}`,
     adminTitle: '用户管理',
     adminSubtitle: '统一查看流量、用户、会员、积分和生图活跃情况。',
+    invitations: '邀请码管理',
+    inviteCodeValue: '邀请码内容',
+    inviteMaxUses: '最大使用次数',
+    inviteUnlimited: '留空表示不限次数',
+    sendInvitation: '新建邀请码',
+    invitationSent: '邀请码已创建。',
+    invitationRevoked: '邀请码已撤销。',
+    noInvitations: '暂无邀请码。',
+    revokeInvitation: '撤销',
+    invitationStatus: '状态',
+    invitationUsage: '使用次数',
+    inviteRequiredSetting: '注册必须填写邀请码',
+    inviteRequiredOn: '已开启',
+    inviteRequiredOff: '已关闭',
     adminMetrics: '数据看板',
     trafficMetrics: '流量数据',
     businessMetrics: '业务数据',
@@ -1425,13 +1492,18 @@ function authMessageForCode(code, language) {
   return messages[code] || t.authError;
 }
 
-function AuthModal({ open, language, onClose }) {
+function AuthModal({ open, language, inviteToken = '', onInvitationAccepted, onClose }) {
   const t = copy[language];
   const [mode, setMode] = useState('login');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmation, setConfirmation] = useState('');
   const [token, setToken] = useState('');
+  const [invitationInput, setInvitationInput] = useState(inviteToken);
+  const [displayName, setDisplayName] = useState('');
+  const [verificationToken, setVerificationToken] = useState('');
+  const [sentRegistrationEmail, setSentRegistrationEmail] = useState('');
+  const [inviteRequired, setInviteRequired] = useState(true);
   const [status, setStatus] = useState('idle');
   const [message, setMessage] = useState('');
   const [cooldown, setCooldown] = useState(0);
@@ -1444,14 +1516,28 @@ function AuthModal({ open, language, onClose }) {
       closeTimerRef.current = null;
     }
     if (!open) return;
-    setMode('login');
+    setMode(inviteToken ? 'register' : 'login');
     setEmail('');
     setPassword('');
     setConfirmation('');
     setToken('');
+    setInvitationInput(inviteToken);
+    setDisplayName('');
+    setVerificationToken('');
+    setSentRegistrationEmail('');
     setStatus('idle');
     setMessage('');
     setCooldown(0);
+  }, [open, inviteToken]);
+
+  useEffect(() => {
+    if (!open) return;
+    fetch('/api/auth/registration/config')
+      .then((response) => response.json())
+      .then((payload) => {
+        if (payload?.ok) setInviteRequired(payload.inviteRequired !== false);
+      })
+      .catch(() => setInviteRequired(true));
   }, [open]);
 
   useEffect(() => {
@@ -1465,8 +1551,7 @@ function AuthModal({ open, language, onClose }) {
   const isLoading = status === 'loading';
   const titles = {
     login: [t.signInTitle, t.signInSubtitle],
-    register: [t.registerTitle, t.registerSubtitle],
-    'verify-signup': [t.signupOtpTitle, t.signupOtpSubtitle(email)],
+    register: [t.registerAccount, t.registrationDetailsSubtitle],
     forgot: [t.forgotTitle, t.forgotSubtitle],
     'verify-recovery': [t.recoveryOtpTitle, t.recoveryOtpSubtitle(email)],
     'reset-password': [t.resetPasswordTitle, t.resetPasswordSubtitle]
@@ -1490,6 +1575,10 @@ function AuthModal({ open, language, onClose }) {
     setStatus('idle');
     setMessage('');
     setCooldown(0);
+    if (nextMode !== 'register') {
+      setSentRegistrationEmail('');
+      setVerificationToken('');
+    }
   }
 
   function ensureConfigured() {
@@ -1527,31 +1616,88 @@ function AuthModal({ open, language, onClose }) {
       }
 
       if (mode === 'register') {
-        if (!validateEmail() || !validatePasswordFields()) return;
-        const { data, error } = await signUpWithEmail(supabase, { email, password });
-        if (error) return showAuthError(error);
-        if (data?.user?.identities && data.user.identities.length === 0) {
-          showError(AUTH_ERROR_CODES.USER_EXISTS);
+        if (!validateEmail()) return;
+        if (!validatePasswordFields()) return;
+        const normalizedDisplayName = displayName.trim().replace(/\s+/g, ' ');
+        if (
+          normalizedDisplayName.length < 2
+          || normalizedDisplayName.length > 30
+          || /[\u0000-\u001f\u007f<>]/.test(normalizedDisplayName)
+        ) {
+          setStatus('error');
+          setMessage(t.inviteDisplayNameInvalid);
           return;
         }
-        if (data?.session) {
-          onClose();
+        const normalizedInvitationCode = normalizeInvitationTokenInput(invitationInput).toLowerCase();
+        if (inviteRequired && !normalizedInvitationCode) {
+          setStatus('error');
+          setMessage(t.inviteCodeInvalid);
           return;
         }
-        setEmail(normalizeEmail(email));
-        setMode('verify-signup');
-        setPassword('');
-        setConfirmation('');
-        setCooldown(AUTH_RESEND_COOLDOWN_SECONDS);
-        setStatus('success');
-        setMessage(t.signupCodeSent);
-        return;
-      }
 
-      if (mode === 'verify-signup') {
-        if (!isValidOtp(token)) return showError(AUTH_ERROR_CODES.INVALID_OTP);
-        const { error } = await verifySignupCode(supabase, { email, token });
+        if (!registrationEmailMatches(sentRegistrationEmail, email) || !isValidOtp(token)) {
+          setStatus('error');
+          setMessage(registrationEmailMatches(sentRegistrationEmail, email)
+            ? t.registrationCodeRequired
+            : t.registrationEmailChanged);
+          return;
+        }
+
+        let activeVerificationToken = verificationToken;
+        if (!activeVerificationToken) {
+          const verifyResponse = await fetch('/api/auth/registration/verify-code', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email: normalizeEmail(email), code: token })
+          });
+          const verifyPayload = await verifyResponse.json().catch(() => ({}));
+          if (!verifyResponse.ok || !verifyPayload.ok) {
+            if (verifyPayload.error === 'AUTH_RATE_LIMITED') return showError(AUTH_ERROR_CODES.RATE_LIMITED);
+            setStatus('error');
+            setMessage(t.registrationCodeInvalid);
+            return;
+          }
+          activeVerificationToken = verifyPayload.verificationToken;
+          setVerificationToken(activeVerificationToken);
+        }
+
+        const response = await fetch('/api/auth/registration/complete', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            verificationToken: activeVerificationToken,
+            inviteCode: normalizedInvitationCode,
+            password,
+            fullName: normalizedDisplayName
+          })
+        });
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok || !payload.ok) {
+          if (payload.error === 'INVALID_PASSWORD') return showError(AUTH_ERROR_CODES.WEAK_PASSWORD);
+          if (payload.error === 'INVALID_DISPLAY_NAME') {
+            setStatus('error');
+            setMessage(t.inviteDisplayNameInvalid);
+            return;
+          }
+          if (payload.error === 'INVALID_INVITE_CODE') {
+            setInviteRequired(true);
+            setStatus('error');
+            setMessage(t.inviteCodeInvalid);
+            return;
+          }
+          if (payload.error === 'REGISTRATION_SESSION_INVALID') {
+            setVerificationToken('');
+            setStatus('error');
+            setMessage(t.registrationSessionInvalid);
+            return;
+          }
+          setStatus('error');
+          setMessage(t.authError);
+          return;
+        }
+        const { error } = await signInWithEmail(supabase, { email: payload.email, password });
         if (error) return showAuthError(error);
+        onInvitationAccepted?.();
         onClose();
         return;
       }
@@ -1596,13 +1742,39 @@ function AuthModal({ open, language, onClose }) {
     setStatus('loading');
     setMessage('');
     try {
-      const result = mode === 'verify-signup'
-        ? await resendSignupCode(supabase, { email })
-        : await requestPasswordRecovery(supabase, { email });
+      const result = await requestPasswordRecovery(supabase, { email });
       if (result?.error) return showAuthError(result.error);
       setCooldown(AUTH_RESEND_COOLDOWN_SECONDS);
       setStatus('success');
-      setMessage(mode === 'verify-signup' ? t.signupCodeSent : t.recoveryCodeSent);
+      setMessage(t.recoveryCodeSent);
+    } catch (error) {
+      showAuthError(error);
+    }
+  }
+
+  async function handleSendRegistrationCode() {
+    if (isLoading || cooldown > 0 || !ensureConfigured() || !validateEmail()) return;
+    setStatus('loading');
+    setMessage('');
+    setVerificationToken('');
+    setSentRegistrationEmail('');
+    setToken('');
+    try {
+      const response = await fetch('/api/auth/registration/request-code', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: normalizeEmail(email) })
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok || !payload.ok) {
+        if (payload.error === 'AUTH_RATE_LIMITED') return showError(AUTH_ERROR_CODES.RATE_LIMITED);
+        return showError(payload.error === 'INVALID_EMAIL' ? AUTH_ERROR_CODES.INVALID_EMAIL : AUTH_ERROR_CODES.UNKNOWN);
+      }
+      setEmail(payload.email);
+      setSentRegistrationEmail(payload.email);
+      setCooldown(payload.cooldownSeconds || AUTH_RESEND_COOLDOWN_SECONDS);
+      setStatus('success');
+      setMessage(t.registrationCodeSent);
     } catch (error) {
       showAuthError(error);
     }
@@ -1610,16 +1782,15 @@ function AuthModal({ open, language, onClose }) {
 
   const submitLabels = {
     login: t.signIn,
-    register: t.createAccount,
-    'verify-signup': t.verifyEmail,
+    register: t.completeRegistration,
     forgot: t.recoverAccount,
     'verify-recovery': t.verifyRecovery,
     'reset-password': t.updatePassword
   };
-  const showsEmail = mode === 'login' || mode === 'register' || mode === 'forgot';
-  const showsPassword = mode === 'login' || mode === 'register' || mode === 'reset-password';
-  const showsConfirmation = mode === 'register' || mode === 'reset-password';
-  const showsOtp = mode === 'verify-signup' || mode === 'verify-recovery';
+  const showsEmail = mode === 'login' || mode === 'forgot';
+  const showsPassword = mode === 'login' || mode === 'reset-password';
+  const showsConfirmation = mode === 'reset-password';
+  const showsOtp = mode === 'verify-recovery';
 
   return (
     <div
@@ -1634,12 +1805,125 @@ function AuthModal({ open, language, onClose }) {
           <X size={20} />
         </button>
         <div className="authIcon">
-          {showsOtp ? <ShieldCheck size={28} /> : mode === 'reset-password' ? <KeyRound size={28} /> : <UserCircle size={28} />}
+          {showsOtp || mode === 'register' ? <ShieldCheck size={28} /> : mode === 'reset-password' ? <KeyRound size={28} /> : <UserCircle size={28} />}
         </div>
         <h2 id="auth-title">{title}</h2>
         <p>{subtitle}</p>
 
         <form className="authForm" onSubmit={handleSubmit}>
+          {mode === 'register' ? (
+            <>
+              <label className="authField">
+                <span>{t.inviteDisplayNameLabel}</span>
+                <input
+                  type="text"
+                  value={displayName}
+                  autoComplete="nickname"
+                  minLength={2}
+                  maxLength={30}
+                  placeholder={t.inviteDisplayNamePlaceholder}
+                  disabled={isLoading}
+                  onChange={(event) => setDisplayName(event.target.value)}
+                />
+                <small>{t.inviteDisplayNameRule}</small>
+              </label>
+
+              <label className="authField">
+                <span>{t.passwordLabel}</span>
+                <input
+                  type="password"
+                  value={password}
+                  minLength={12}
+                  maxLength={128}
+                  autoComplete="new-password"
+                  placeholder={t.newPasswordPlaceholder}
+                  disabled={isLoading}
+                  onChange={(event) => setPassword(event.target.value)}
+                />
+              </label>
+
+              <label className="authField">
+                <span>{t.confirmPasswordLabel}</span>
+                <input
+                  type="password"
+                  value={confirmation}
+                  minLength={12}
+                  maxLength={128}
+                  autoComplete="new-password"
+                  placeholder={t.confirmPasswordPlaceholder}
+                  disabled={isLoading}
+                  onChange={(event) => setConfirmation(event.target.value)}
+                />
+                <small>{t.passwordRule}</small>
+              </label>
+
+              <label className="authField">
+                <span>{t.emailLabel}</span>
+                <div className="authEmailRow">
+                  <input
+                    type="email"
+                    value={email}
+                    autoComplete="email"
+                    placeholder={t.emailPlaceholder}
+                    disabled={isLoading}
+                    onChange={(event) => {
+                      const nextEmail = event.target.value;
+                      setEmail(nextEmail);
+                      if (sentRegistrationEmail && !registrationEmailMatches(sentRegistrationEmail, nextEmail)) {
+                        setSentRegistrationEmail('');
+                        setVerificationToken('');
+                        setToken('');
+                        setCooldown(0);
+                        setStatus('error');
+                        setMessage(t.registrationEmailChanged);
+                      }
+                    }}
+                  />
+                  <button
+                    className="authInlineButton"
+                    type="button"
+                    disabled={isLoading || cooldown > 0}
+                    onClick={handleSendRegistrationCode}
+                  >
+                    {cooldown > 0 ? t.resendCountdown(cooldown) : t.sendRegistrationCode}
+                  </button>
+                </div>
+              </label>
+
+              <label className="authField authOtpField">
+                <span>{t.verificationCodeLabel}</span>
+                <input
+                  type="text"
+                  value={token}
+                  inputMode="numeric"
+                  autoComplete="one-time-code"
+                  maxLength={6}
+                  placeholder={t.verificationCodePlaceholder}
+                  disabled={isLoading}
+                  onChange={(event) => {
+                    setToken(normalizeOtp(event.target.value));
+                    setVerificationToken('');
+                  }}
+                />
+              </label>
+
+              {inviteRequired ? (
+                <label className="authField">
+                  <span>{t.inviteCodeLabel}</span>
+                  <input
+                    type="text"
+                    value={invitationInput}
+                    autoComplete="off"
+                    maxLength={32}
+                    placeholder={t.inviteCodePlaceholder}
+                    disabled={isLoading}
+                    onChange={(event) => setInvitationInput(event.target.value)}
+                  />
+                </label>
+              ) : null}
+            </>
+          ) : null}
+
           {showsEmail ? (
             <label className="authField">
               <span>{t.emailLabel}</span>
@@ -1660,7 +1944,8 @@ function AuthModal({ open, language, onClose }) {
               <input
                 type="password"
                 value={password}
-                minLength={mode === 'login' ? undefined : 8}
+                minLength={mode === 'login' ? undefined : 12}
+                maxLength={128}
                 autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
                 placeholder={mode === 'reset-password' ? t.newPasswordPlaceholder : t.passwordPlaceholder}
                 disabled={isLoading}
@@ -1675,7 +1960,8 @@ function AuthModal({ open, language, onClose }) {
               <input
                 type="password"
                 value={confirmation}
-                minLength={8}
+                minLength={12}
+                maxLength={128}
                 autoComplete="new-password"
                 placeholder={t.confirmPasswordPlaceholder}
                 disabled={isLoading}
@@ -1713,11 +1999,11 @@ function AuthModal({ open, language, onClose }) {
           </button>
         </form>
 
-        {mode === 'login' || mode === 'register' ? (
+        {mode === 'login' ? (
           <div className="authSwitchRow">
-            <span>{mode === 'login' ? t.noAccount : t.haveAccount}</span>
-            <button className="authTextButton" type="button" onClick={() => switchMode(mode === 'login' ? 'register' : 'login')} disabled={isLoading}>
-              {mode === 'login' ? t.createAccount : t.signIn}
+            <span>{inviteRequired ? t.invitationOnly : t.registrationOpen}</span>
+            <button className="authTextButton" type="button" onClick={() => switchMode('register')} disabled={isLoading}>
+              {t.registerAccount}
             </button>
           </div>
         ) : null}
@@ -1730,12 +2016,20 @@ function AuthModal({ open, language, onClose }) {
           </div>
         ) : null}
 
+        {mode === 'register' ? (
+          <div className="authSwitchRow">
+            <button className="authTextButton" type="button" onClick={() => switchMode('login')} disabled={isLoading}>
+              {t.backToSignIn}
+            </button>
+          </div>
+        ) : null}
+
         {showsOtp ? (
           <div className="authOtpActions">
             <button className="authTextButton" type="button" onClick={handleResend} disabled={isLoading || cooldown > 0}>
               {cooldown > 0 ? t.resendCountdown(cooldown) : t.resendCode}
             </button>
-            <button className="authTextButton" type="button" onClick={() => switchMode(mode === 'verify-signup' ? 'register' : 'forgot')} disabled={isLoading}>
+            <button className="authTextButton" type="button" onClick={() => switchMode('forgot')} disabled={isLoading}>
               {t.changeEmail}
             </button>
           </div>
@@ -2449,6 +2743,154 @@ function AdminRankList({ rows, type, language }) {
   );
 }
 
+function InvitationAdminSection({ language, session }) {
+  const t = copy[language];
+  const [inviteCodes, setInviteCodes] = useState([]);
+  const [code, setCode] = useState('');
+  const [maxUses, setMaxUses] = useState('');
+  const [inviteRequired, setInviteRequired] = useState(true);
+  const [status, setStatus] = useState('idle');
+  const [message, setMessage] = useState('');
+
+  async function loadInvitations() {
+    if (!session?.access_token) return;
+    try {
+      const headers = getAuthHeaders(session);
+      const [codesResponse, settingsResponse] = await Promise.all([
+        fetch('/api/admin/invite-codes', { headers }),
+        fetch('/api/admin/registration-settings', { headers })
+      ]);
+      const codesPayload = await codesResponse.json().catch(() => ({}));
+      const settingsPayload = await settingsResponse.json().catch(() => ({}));
+      if (!codesResponse.ok || !codesPayload.ok || !settingsResponse.ok || !settingsPayload.ok) {
+        throw new Error('INVITE_CODE_FAILED');
+      }
+      setInviteCodes(codesPayload.inviteCodes || []);
+      setInviteRequired(settingsPayload.inviteRequired !== false);
+    } catch (error) {
+      setMessage(error.message || 'INVITE_CODE_FAILED');
+    }
+  }
+
+  async function sendInvitation(event) {
+    event.preventDefault();
+    if (!code.trim() || status === 'loading') return;
+    setStatus('loading');
+    setMessage('');
+    try {
+      const response = await fetch('/api/admin/invite-codes', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...getAuthHeaders(session) },
+        body: JSON.stringify({ code, maxUses })
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok || !payload.ok) throw new Error(payload.error || 'INVITE_CODE_FAILED');
+      const createdCode = code.trim().toLowerCase();
+      setCode('');
+      setMaxUses('');
+      setMessage(`${t.invitationSent} ${createdCode}`);
+      await loadInvitations();
+    } catch (error) {
+      setMessage(error.message || 'INVITE_CODE_FAILED');
+    } finally {
+      setStatus('idle');
+    }
+  }
+
+  async function revoke(id) {
+    setStatus('loading');
+    setMessage('');
+    try {
+      const response = await fetch('/api/admin/invite-codes/revoke', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...getAuthHeaders(session) },
+        body: JSON.stringify({ id })
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok || !payload.ok) throw new Error(payload.error || 'INVITE_CODE_FAILED');
+      setMessage(t.invitationRevoked);
+      await loadInvitations();
+    } catch (error) {
+      setMessage(error.message || 'INVITE_CODE_FAILED');
+    } finally {
+      setStatus('idle');
+    }
+  }
+
+  async function toggleInviteRequirement() {
+    setStatus('loading');
+    setMessage('');
+    try {
+      const response = await fetch('/api/admin/registration-settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...getAuthHeaders(session) },
+        body: JSON.stringify({ inviteRequired: !inviteRequired })
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok || !payload.ok) throw new Error(payload.error || 'INVITE_CODE_FAILED');
+      setInviteRequired(payload.inviteRequired !== false);
+    } catch (error) {
+      setMessage(error.message || 'INVITE_CODE_FAILED');
+    } finally {
+      setStatus('idle');
+    }
+  }
+
+  useEffect(() => {
+    loadInvitations();
+  }, [session?.access_token]);
+
+  return (
+    <section className="adminBlock adminInvitationBlock">
+      <h3><UserPlus size={18} />{t.invitations}</h3>
+      <div className="adminInviteSetting">
+        <span>{t.inviteRequiredSetting}</span>
+        <button type="button" onClick={toggleInviteRequirement} disabled={status === 'loading'}>
+          {inviteRequired ? t.inviteRequiredOn : t.inviteRequiredOff}
+        </button>
+      </div>
+      <form className="adminInviteForm" onSubmit={sendInvitation}>
+        <label>
+          <span>{t.inviteCodeValue}</span>
+          <input value={code} minLength={4} maxLength={32} placeholder="nasmy" onChange={(event) => setCode(event.target.value)} disabled={status === 'loading'} />
+        </label>
+        <label>
+          <span>{t.inviteMaxUses}</span>
+          <input type="number" min="1" max="100000" value={maxUses} placeholder={t.inviteUnlimited} onChange={(event) => setMaxUses(event.target.value)} disabled={status === 'loading'} />
+        </label>
+        <button type="submit" disabled={status === 'loading' || !code.trim()}>
+          {status === 'loading' ? <LoaderCircle className="spinIcon" size={16} /> : <UserPlus size={16} />}
+          {t.sendInvitation}
+        </button>
+      </form>
+      {message ? <p className="adminNotice" role="status">{message}</p> : null}
+      {inviteCodes.length ? (
+        <div className="adminTableWrap">
+          <table className="adminTable">
+            <thead><tr><th>{t.inviteCodeValue}</th><th>{t.invitationUsage}</th><th>{t.invitationStatus}</th><th /></tr></thead>
+            <tbody>
+              {inviteCodes.map((invitation) => (
+                <tr key={invitation.id}>
+                  <td><strong>{invitation.codeHint}</strong></td>
+                  <td>{invitation.useCount} / {invitation.maxUses ?? '∞'}</td>
+                  <td><span className="roleBadge">{invitation.active ? 'active' : 'inactive'}</span></td>
+                  <td>
+                    {invitation.active ? (
+                      <button className="tableAction" type="button" onClick={() => revoke(invitation.id)} disabled={status === 'loading'}>
+                        <X size={14} />{t.revokeInvitation}
+                      </button>
+                    ) : '-'}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ) : <p className="emptyTransactions">{t.noInvitations}</p>}
+    </section>
+  );
+}
+
 function AdminPanel({ open, language, session, casesById, onClose, onOpenCase }) {
   const t = copy[language];
   const [users, setUsers] = useState([]);
@@ -2638,6 +3080,7 @@ function AdminPanel({ open, language, session, casesById, onClose, onOpenCase })
         </div>
 
         <CommunityAdminSection language={language} session={session} />
+        <InvitationAdminSection language={language} session={session} />
 
         {metrics ? (
           <div className="adminDashboard">
@@ -3777,7 +4220,8 @@ function App() {
   const [favoriteRows, setFavoriteRows] = useState([]);
   const [favoriteBusyId, setFavoriteBusyId] = useState(null);
   const [favoriteMessage, setFavoriteMessage] = useState('');
-  const [authOpen, setAuthOpen] = useState(false);
+  const [inviteToken, setInviteToken] = useState(() => new URLSearchParams(window.location.search).get('invite') || '');
+  const [authOpen, setAuthOpen] = useState(() => Boolean(new URLSearchParams(window.location.search).get('invite')));
   const [accountOpen, setAccountOpen] = useState(false);
   const [accountInitialSection, setAccountInitialSection] = useState('overview');
   const [adminOpen, setAdminOpen] = useState(false);
@@ -4152,6 +4596,13 @@ function App() {
     setAccountInitialSection('overview');
   }
 
+  function handleInvitationAccepted() {
+    setInviteToken('');
+    const url = new URL(window.location.href);
+    url.searchParams.delete('invite');
+    window.history.replaceState({}, '', `${url.pathname}${url.search}${url.hash}`);
+  }
+
   const normalizedPath = window.location.pathname.replace(/\/+$/, '') || '/';
   const isCommunityRoute = normalizedPath === '/community' || normalizedPath === '/community/result';
 
@@ -4171,6 +4622,8 @@ function App() {
         <AuthModal
           open={authOpen}
           language={language}
+          inviteToken={inviteToken}
+          onInvitationAccepted={handleInvitationAccepted}
           onClose={() => setAuthOpen(false)}
         />
         <AdminPanel
@@ -4382,6 +4835,8 @@ function App() {
       <AuthModal
         open={authOpen}
         language={language}
+        inviteToken={inviteToken}
+        onInvitationAccepted={handleInvitationAccepted}
         onClose={() => setAuthOpen(false)}
       />
       <AccountPanel

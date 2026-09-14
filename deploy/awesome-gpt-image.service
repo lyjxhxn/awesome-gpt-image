@@ -1,0 +1,22 @@
+[Unit]
+Description=Awesome GPT Image Node server
+After=network-online.target docker.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=awesome-gpt-image
+Group=awesome-gpt-image
+WorkingDirectory=/opt/awesome-gpt-image/current
+EnvironmentFile=/etc/awesome-gpt-image/app.env
+ExecStart=/usr/bin/node server/index.js
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/awesome-gpt-image
+
+[Install]
+WantedBy=multi-user.target
